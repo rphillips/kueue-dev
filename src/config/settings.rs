@@ -19,6 +19,19 @@ pub struct Settings {
 
     #[serde(default)]
     pub kueue: KueueSettings,
+
+    #[serde(default)]
+    pub tests: TestSettings,
+}
+
+/// Test configuration settings
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct TestSettings {
+    #[serde(default = "default_operator_skip_patterns")]
+    pub operator_skip_patterns: Vec<String>,
+
+    #[serde(default = "default_upstream_skip_patterns")]
+    pub upstream_skip_patterns: Vec<String>,
 }
 
 /// Default values for common operations
@@ -110,6 +123,53 @@ fn default_kueue_frameworks() -> Vec<String> {
     ]
 }
 
+fn default_operator_skip_patterns() -> Vec<String> {
+    vec![
+        "AppWrapper".to_string(),
+        "PyTorch".to_string(),
+        "JobSet".to_string(),
+        "LeaderWorkerSet".to_string(),
+        "JAX".to_string(),
+        "Kuberay".to_string(),
+        "Metrics".to_string(),
+        "Fair".to_string(),
+        "TopologyAwareScheduling".to_string(),
+        "Kueue visibility server".to_string(),
+        "Failed Pod can be replaced in group".to_string(),
+        "should allow to schedule a group of diverse pods".to_string(),
+        "StatefulSet created with WorkloadPriorityClass".to_string(),
+    ]
+}
+
+fn default_upstream_skip_patterns() -> Vec<String> {
+    vec![
+        // do not deploy AppWrapper in OCP
+        "AppWrapper".to_string(),
+        // do not deploy PyTorch in OCP
+        "PyTorch".to_string(),
+        // do not deploy JobSet in OCP
+        "TrainJob".to_string(),
+        // do not deploy LWS in OCP
+        "JAX".to_string(),
+        // do not deploy KubeRay in OCP
+        "Kuberay".to_string(),
+        // metrics setup is different than our OCP setup
+        "Metrics".to_string(),
+        // ring -> we do not enable Fair sharing by default in our operator
+        "Fair".to_string(),
+        // we do not enable this feature in our operator
+        "TopologyAwareScheduling".to_string(),
+        // relies on particular CPU setup to force pods to not schedule
+        "Failed Pod can be replaced in group".to_string(),
+        // relies on particular CPU setup
+        "should allow to schedule a group of diverse pods".to_string(),
+        // relies on particular CPU setup
+        "StatefulSet created with WorkloadPriorityClass".to_string(),
+        // We do not have kueuectl in our operator
+        "Kueuectl".to_string(),
+    ]
+}
+
 impl Default for Defaults {
     fn default() -> Self {
         Self {
@@ -145,6 +205,15 @@ impl Default for KueueSettings {
             name: default_kueue_name(),
             namespace: default_kueue_namespace(),
             frameworks: default_kueue_frameworks(),
+        }
+    }
+}
+
+impl Default for TestSettings {
+    fn default() -> Self {
+        Self {
+            operator_skip_patterns: default_operator_skip_patterns(),
+            upstream_skip_patterns: default_upstream_skip_patterns(),
         }
     }
 }
@@ -236,6 +305,40 @@ name = "cluster"
 namespace = "openshift-kueue-operator"
 # Frameworks to enable
 frameworks = ["BatchJob", "Pod", "Deployment", "StatefulSet", "JobSet", "LeaderWorkerSet"]
+
+[tests]
+# Test patterns to skip for operator tests
+operator_skip_patterns = [
+    "AppWrapper",
+    "PyTorch",
+    "JobSet",
+    "LeaderWorkerSet",
+    "JAX",
+    "Kuberay",
+    "Metrics",
+    "Fair",
+    "TopologyAwareScheduling",
+    "Kueue visibility server",
+    "Failed Pod can be replaced in group",
+    "should allow to schedule a group of diverse pods",
+    "StatefulSet created with WorkloadPriorityClass"
+]
+
+# Test patterns to skip for upstream tests
+upstream_skip_patterns = [
+    "AppWrapper",
+    "PyTorch",
+    "TrainJob",
+    "JAX",
+    "Kuberay",
+    "Metrics",
+    "Fair",
+    "TopologyAwareScheduling",
+    "Failed Pod can be replaced in group",
+    "should allow to schedule a group of diverse pods",
+    "StatefulSet created with WorkloadPriorityClass",
+    "Kueuectl"
+]
 "#
                 .to_string()
             }

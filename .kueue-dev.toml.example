@@ -1,0 +1,82 @@
+# kueue-dev configuration file example
+# Copy this file to .kueue-dev.toml and customize as needed:
+#   cp .kueue-dev.toml.example .kueue-dev.toml
+#
+# Place this file at:
+#   - .kueue-dev.toml (project-specific, current directory)
+#   - ~/.config/kueue-dev/config.toml (global user configuration)
+
+[defaults]
+# Default cluster name for commands
+cluster_name = "kueue-test"
+
+# CNI provider to use: "calico" or "default"
+cni_provider = "default"
+
+# Default images configuration file
+images_file = "related_images.rphillips.json"
+
+[colors]
+# Enable/disable colored output
+enabled = true
+
+# Color theme (future use)
+theme = "default"
+
+[behavior]
+# Prompt before destructive operations
+confirm_destructive = true
+
+# Enable parallel execution
+parallel_operations = true
+
+# Show progress indicators
+show_progress = true
+
+[kueue]
+# Kueue CR namespace - should always be "openshift-kueue-operator"
+namespace = "openshift-kueue-operator"
+
+# Frameworks to enable in Kueue CR
+frameworks = [
+    "BatchJob",
+    "Pod",
+    "Deployment",
+    "StatefulSet",
+    "JobSet",
+    "LeaderWorkerSet"
+]
+
+[tests]
+# Test patterns to skip for operator tests
+operator_skip_patterns = [
+    "AppWrapper",
+    "PyTorch",
+    "JobSet",
+    "LeaderWorkerSet",
+    "JAX",
+    "Kuberay",
+    "Metrics",
+    "Fair",
+    "TopologyAwareScheduling",
+    "Kueue visibility server",
+    "Failed Pod can be replaced in group",
+    "should allow to schedule a group of diverse pods",
+    "StatefulSet created with WorkloadPriorityClass"
+]
+
+# Test patterns to skip for upstream tests
+upstream_skip_patterns = [
+    "AppWrapper",        # do not deploy AppWrapper in OCP
+    "PyTorch",          # do not deploy PyTorch in OCP
+    "TrainJob",         # do not deploy JobSet in OCP
+    "JAX",              # do not deploy LWS in OCP
+    "Kuberay",          # do not deploy KubeRay in OCP
+    "Metrics",          # metrics setup is different than our OCP setup
+    "Fair",             # we do not enable Fair sharing by default in our operator
+    "TopologyAwareScheduling",  # we do not enable this feature in our operator
+    "Failed Pod can be replaced in group",  # relies on particular CPU setup
+    "should allow to schedule a group of diverse pods",  # relies on particular CPU setup
+    "StatefulSet created with WorkloadPriorityClass",   # relies on particular CPU setup
+    "Kueuectl"          # we do not have kueuectl in our operator
+]

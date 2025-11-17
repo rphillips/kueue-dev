@@ -27,26 +27,13 @@ pub struct TestKindOptions {
     pub kueue_namespace: Option<String>,
 }
 
-/// Test skip patterns from test.sh
-const TEST_SKIPS: &[&str] = &[
-    "AppWrapper",
-    "PyTorch",
-    "JobSet",
-    "LeaderWorkerSet",
-    "JAX",
-    "Kuberay",
-    "Metrics",
-    "Fair",
-    "TopologyAwareScheduling",
-    "Kueue visibility server",
-    "Failed Pod can be replaced in group",
-    "should allow to schedule a group of diverse pods",
-    "StatefulSet created with WorkloadPriorityClass",
-];
-
-/// Generate test skip pattern regex
-pub fn generate_skip_pattern() -> String {
-    format!("({})", TEST_SKIPS.join("|"))
+/// Generate test skip pattern regex from a list of patterns
+pub fn generate_skip_pattern(patterns: &[String]) -> String {
+    if patterns.is_empty() {
+        return String::new();
+    }
+    let pattern_strings: Vec<&str> = patterns.iter().map(|s| s.as_str()).collect();
+    format!("({})", pattern_strings.join("|"))
 }
 
 /// Run e2e tests on existing cluster
@@ -73,8 +60,12 @@ pub fn run_tests(focus: Option<String>, label_filter: Option<String>, kubeconfig
     // Install or check for ginkgo
     let ginkgo_bin = ensure_ginkgo(&project_root)?;
 
+    // Load settings to get skip patterns
+    let settings = Settings::load();
+    let skip_patterns = &settings.tests.operator_skip_patterns;
+
     // Run tests
-    execute_ginkgo_tests(&ginkgo_bin, &project_root, focus, label_filter)?;
+    execute_ginkgo_tests(&ginkgo_bin, &project_root, focus, label_filter, skip_patterns)?;
 
     Ok(())
 }
@@ -102,6 +93,10 @@ pub fn run_tests_with_retry(focus: Option<String>, label_filter: Option<String>,
     // Install or check for ginkgo
     let ginkgo_bin = ensure_ginkgo(&project_root)?;
 
+    // Load settings to get skip patterns
+    let settings = Settings::load();
+    let skip_patterns = &settings.tests.operator_skip_patterns;
+
     crate::log_info!("");
     crate::log_info!("==========================================");
     crate::log_info!("Running E2E tests");
@@ -110,7 +105,7 @@ pub fn run_tests_with_retry(focus: Option<String>, label_filter: Option<String>,
 
     // Retry loop
     loop {
-        match execute_ginkgo_tests(&ginkgo_bin, &project_root, focus.clone(), label_filter.clone()) {
+        match execute_ginkgo_tests(&ginkgo_bin, &project_root, focus.clone(), label_filter.clone(), skip_patterns) {
             Ok(_) => {
                 crate::log_info!("");
                 crate::log_info!("==========================================");
@@ -263,6 +258,7 @@ fn execute_ginkgo_tests(
     project_root: &Path,
     focus: Option<String>,
     label_filter: Option<String>,
+    skip_patterns: &[String],
 ) -> Result<()> {
     crate::log_info!("Running e2e tests...");
 
@@ -273,9 +269,11 @@ fn execute_ginkgo_tests(
     let mut args = vec![label_filter_arg.as_str(), "-v"];
 
     // Generate skip pattern
-    let skip_pattern = generate_skip_pattern();
-    args.push("--skip");
-    args.push(&skip_pattern);
+    let skip_pattern = generate_skip_pattern(skip_patterns);
+    if !skip_pattern.is_empty() {
+        args.push("--skip");
+        args.push(&skip_pattern);
+    }
 
     // Add focus pattern if provided
     let focus_arg;
@@ -367,38 +365,6 @@ fn build_kueue_config_from_settings(
     builder.build()
 }
 
-/// Upstream test skip patterns from e2e-test-ocp.sh
-const UPSTREAM_TEST_SKIPS: &[&str] = &[
-    // do not deploy AppWrapper in OCP
-    "AppWrapper",
-    // do not deploy PyTorch in OCP
-    "PyTorch",
-    // do not deploy JobSet in OCP
-    "TrainJob",
-    // do not deploy LWS in OCP
-    "JAX",
-    // do not deploy KubeRay in OCP
-    "Kuberay",
-    // metrics setup is different than our OCP setup
-    "Metrics",
-    // ring -> we do not enable Fair sharing by default in our operator
-    "Fair",
-    // we do not enable this feature in our operator
-    "TopologyAwareScheduling",
-    // relies on particular CPU setup to force pods to not schedule
-    "Failed Pod can be replaced in group",
-    // relies on particular CPU setup
-    "should allow to schedule a group of diverse pods",
-    // relies on particular CPU setup
-    "StatefulSet created with WorkloadPriorityClass",
-    // We do not have kueuectl in our operator
-    "Kueuectl",
-];
-
-/// Generate upstream test skip pattern regex
-fn generate_upstream_skip_pattern() -> String {
-    format!("({})", UPSTREAM_TEST_SKIPS.join("|"))
-}
 
 /// Apply git patches to upstream kueue source
 fn apply_git_patches(upstream_dir: &Path) -> Result<()> {
@@ -569,12 +535,20 @@ pub fn test_upstream(
     // Ensure ginkgo is available
     let ginkgo_bin = ensure_ginkgo(&upstream_src_dir)?;
 
+    // Load settings to get skip patterns
+    let settings = Settings::load();
+    let skip_patterns = &settings.tests.upstream_skip_patterns;
+
     // Build test command
     crate::log_info!("Running upstream e2e tests...");
 
-    let skip_pattern = generate_upstream_skip_pattern();
+    let skip_pattern = generate_skip_pattern(skip_patterns);
 
-    let mut args = vec!["--skip", &skip_pattern];
+    let mut args = Vec::new();
+    if !skip_pattern.is_empty() {
+        args.push("--skip");
+        args.push(skip_pattern.as_str());
+    }
 
     // Add verbosity
     args.push("-v");
@@ -636,11 +610,24 @@ mod tests {
 
     #[test]
     fn test_generate_skip_pattern() {
-        let pattern = generate_skip_pattern();
+        let patterns = vec![
+            "AppWrapper".to_string(),
+            "PyTorch".to_string(),
+            "JobSet".to_string(),
+        ];
+        let pattern = generate_skip_pattern(&patterns);
         assert!(pattern.contains("AppWrapper"));
         assert!(pattern.contains("PyTorch"));
+        assert!(pattern.contains("JobSet"));
         assert!(pattern.starts_with('('));
         assert!(pattern.ends_with(')'));
+    }
+
+    #[test]
+    fn test_generate_skip_pattern_empty() {
+        let patterns = vec![];
+        let pattern = generate_skip_pattern(&patterns);
+        assert_eq!(pattern, "");
     }
 
     #[test]

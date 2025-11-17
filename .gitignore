@@ -18,6 +18,7 @@ Thumbs.db
 # Local development
 kube.kubeconfig
 *.local.toml
+.kueue-dev.toml
 
 # mdBook output
 docs/book/
