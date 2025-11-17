@@ -6,6 +6,7 @@ use clap_complete::{generate, Shell};
 use kueue_dev::utils::{CommonPrereqs, ContainerRuntime, Prerequisite};
 use kueue_dev::{log_error, log_info};
 use std::io;
+use tracing_subscriber::{fmt, prelude::*, EnvFilter};
 
 #[derive(Parser)]
 #[command(name = "kueue-dev")]
@@ -256,6 +257,18 @@ fn main() -> Result<()> {
         _ => "trace", // -vvv: trace level
     };
     std::env::set_var("RUST_LOG", log_level);
+
+    // Initialize tracing subscriber with custom formatting
+    // Format matches the old style: [LEVEL] message
+    tracing_subscriber::registry()
+        .with(fmt::layer()
+            .with_target(false)
+            .with_level(true)
+            .with_ansi(true)
+            .without_time()
+            .with_writer(std::io::stderr))
+        .with(EnvFilter::from_default_env())
+        .init();
 
     // Set dry-run mode
     if cli.dry_run {

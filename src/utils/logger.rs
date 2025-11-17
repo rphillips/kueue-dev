@@ -1,21 +1,20 @@
-//! Colored logging utilities matching the shell script output style
+//! Logging utilities using the tracing framework
 
-use colored::Colorize;
 use std::fmt::Display;
 
-/// Log an informational message with green [INFO] prefix
+/// Log an informational message (wrapper around tracing::info)
 pub fn log_info<T: Display>(msg: T) {
-    eprintln!("{} {}", "[INFO]".green(), msg);
+    tracing::info!("{}", msg);
 }
 
-/// Log a warning message with yellow [WARN] prefix
+/// Log a warning message (wrapper around tracing::warn)
 pub fn log_warn<T: Display>(msg: T) {
-    eprintln!("{} {}", "[WARN]".yellow(), msg);
+    tracing::warn!("{}", msg);
 }
 
-/// Log an error message with red [ERROR] prefix
+/// Log an error message (wrapper around tracing::error)
 pub fn log_error<T: Display>(msg: T) {
-    eprintln!("{} {}", "[ERROR]".red(), msg);
+    tracing::error!("{}", msg);
 }
 
 /// Macro for convenient info logging
