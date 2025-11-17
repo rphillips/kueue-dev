@@ -1,7 +1,6 @@
 //! Prerequisite checking system for required tools
 
 use anyhow::{anyhow, Result};
-use std::process::Command;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -10,10 +9,7 @@ pub enum PrereqError {
     NotFound { name: String, hint: String },
 
     #[error("Failed to check for tool '{name}': {source}")]
-    CheckFailed {
-        name: String,
-        source: anyhow::Error,
-    },
+    CheckFailed { name: String, source: anyhow::Error },
 }
 
 /// Trait for checking prerequisites
@@ -91,10 +87,7 @@ impl CommonPrereqs {
 
     /// Get go prerequisite
     pub fn go() -> CommandPrereq {
-        CommandPrereq::new(
-            "go",
-            "Install from: https://golang.org/doc/install",
-        )
+        CommandPrereq::new("go", "Install from: https://golang.org/doc/install")
     }
 
     /// Get oc (OpenShift CLI) prerequisite

@@ -1,9 +1,9 @@
 //! OLM (Operator Lifecycle Manager) installation
 
+use crate::k8s::kubectl;
 use anyhow::{Context, Result};
 use std::path::Path;
 use std::process::Command;
-use crate::k8s::kubectl;
 
 /// Install OLM (Operator Lifecycle Manager)
 pub fn install_olm(kubeconfig: Option<&Path>) -> Result<()> {
@@ -46,7 +46,12 @@ pub fn install_olm(kubeconfig: Option<&Path>) -> Result<()> {
     temp_crds.flush()?;
 
     kubectl::run_kubectl(
-        &["apply", "--server-side", "-f", temp_crds.path().to_str().unwrap()],
+        &[
+            "apply",
+            "--server-side",
+            "-f",
+            temp_crds.path().to_str().unwrap(),
+        ],
         kubeconfig,
     )?;
 
@@ -61,7 +66,12 @@ pub fn install_olm(kubeconfig: Option<&Path>) -> Result<()> {
     temp_olm.flush()?;
 
     kubectl::run_kubectl(
-        &["apply", "--server-side", "-f", temp_olm.path().to_str().unwrap()],
+        &[
+            "apply",
+            "--server-side",
+            "-f",
+            temp_olm.path().to_str().unwrap(),
+        ],
         kubeconfig,
     )?;
 
@@ -76,7 +86,8 @@ pub fn install_olm(kubeconfig: Option<&Path>) -> Result<()> {
         Some("olm"),
         "300s",
         kubeconfig,
-    ).ok();
+    )
+    .ok();
 
     kubectl::wait_for_condition(
         "deployment/olm-operator",
@@ -84,7 +95,8 @@ pub fn install_olm(kubeconfig: Option<&Path>) -> Result<()> {
         Some("olm"),
         "300s",
         kubeconfig,
-    ).ok();
+    )
+    .ok();
 
     kubectl::wait_for_condition(
         "deployment/packageserver",
@@ -92,7 +104,8 @@ pub fn install_olm(kubeconfig: Option<&Path>) -> Result<()> {
         Some("olm"),
         "300s",
         kubeconfig,
-    ).ok();
+    )
+    .ok();
 
     crate::log_info!("OLM installed successfully");
     Ok(())
@@ -101,7 +114,7 @@ pub fn install_olm(kubeconfig: Option<&Path>) -> Result<()> {
 /// Install operator via OLM bundle
 pub fn install_bundle(
     bundle_image: &str,
-    cluster_name: &str,
+    _cluster_name: &str,
     kubeconfig: Option<&Path>,
 ) -> Result<()> {
     crate::log_info!("Installing kueue-operator via OLM bundle...");
@@ -124,15 +137,17 @@ metadata:
         cmd.env("KUBECONFIG", kc);
     }
 
-    cmd.args(&[
-        "run", "bundle",
+    cmd.args([
+        "run",
+        "bundle",
         bundle_image,
-        "--namespace", "openshift-kueue-operator",
-        "--timeout", "10m",
+        "--namespace",
+        "openshift-kueue-operator",
+        "--timeout",
+        "10m",
     ]);
 
-    let status = cmd.status()
-        .context("Failed to run operator-sdk")?;
+    let status = cmd.status().context("Failed to run operator-sdk")?;
 
     if !status.success() {
         return Err(anyhow::anyhow!("operator-sdk run bundle failed"));
@@ -145,7 +160,8 @@ metadata:
     kubectl::run_kubectl(
         &["get", "deployments", "-n", "openshift-kueue-operator"],
         kubeconfig,
-    ).ok();
+    )
+    .ok();
 
     Ok(())
 }

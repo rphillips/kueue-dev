@@ -1,17 +1,24 @@
 //! Kueue-dev CLI - Development tool for kueue-operator
 
 use anyhow::Result;
-use clap::{Parser, Subcommand};
+use clap::{CommandFactory, Parser, Subcommand};
+use clap_complete::{generate, Shell};
 use kueue_dev::utils::{CommonPrereqs, ContainerRuntime, Prerequisite};
 use kueue_dev::{log_error, log_info};
+use std::io;
 
 #[derive(Parser)]
 #[command(name = "kueue-dev")]
 #[command(author, version, about = "Development CLI tool for kueue-operator", long_about = None)]
 struct Cli {
-    /// Verbose output
-    #[arg(short, long, global = true)]
-    verbose: bool,
+    /// Verbose output (can be used multiple times: -v, -vv, -vvv)
+    /// -v: INFO, -vv: DEBUG, -vvv: TRACE
+    #[arg(short, long, global = true, action = clap::ArgAction::Count)]
+    verbose: u8,
+
+    /// Dry-run mode: show what would be done without making changes
+    #[arg(long, global = true)]
+    dry_run: bool,
 
     #[command(subcommand)]
     command: Commands,
@@ -70,6 +77,13 @@ enum Commands {
         /// Path to kubeconfig file
         #[arg(short, long, env = "KUBECONFIG")]
         kubeconfig: Option<String>,
+    },
+
+    /// Generate shell completion scripts
+    Completion {
+        /// Shell type
+        #[arg(value_enum)]
+        shell: Shell,
     },
 
     /// Show version information
@@ -200,9 +214,20 @@ enum ImagesCommands {
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
-    // Set up logging based on verbosity
-    if cli.verbose {
-        std::env::set_var("RUST_LOG", "debug");
+    // Set up logging based on verbosity level
+    let log_level = match cli.verbose {
+        0 => "warn",  // Default: only warnings and errors
+        1 => "info",  // -v: info level
+        2 => "debug", // -vv: debug level
+        _ => "trace", // -vvv: trace level
+    };
+    std::env::set_var("RUST_LOG", log_level);
+
+    // Set dry-run mode
+    if cli.dry_run {
+        std::env::set_var("KUEUE_DEV_DRY_RUN", "1");
+        crate::log_info!("🔍 DRY RUN MODE: No changes will be made");
+        println!();
     }
 
     match cli.command {
@@ -211,31 +236,32 @@ fn main() -> Result<()> {
         Commands::Test { command } => handle_test_command(command),
         Commands::Cleanup { kubeconfig } => handle_cleanup_command(kubeconfig),
         Commands::Images { command } => handle_images_command(command),
-        Commands::Check { kind, openshift, olm } => handle_check_command(kind, openshift, olm),
+        Commands::Check {
+            kind,
+            openshift,
+            olm,
+        } => handle_check_command(kind, openshift, olm),
         Commands::Interactive { kubeconfig } => handle_interactive_command(kubeconfig),
+        Commands::Completion { shell } => handle_completion_command(shell),
         Commands::Version => handle_version_command(),
     }
 }
 
 fn handle_cluster_command(command: ClusterCommands) -> Result<()> {
     match command {
-        ClusterCommands::Create { name, cni } => {
-            kueue_dev::commands::cluster::create(name, cni)
-        }
-        ClusterCommands::Delete { name } => {
-            kueue_dev::commands::cluster::delete(name)
-        }
-        ClusterCommands::List => {
-            kueue_dev::commands::cluster::list()
-        }
+        ClusterCommands::Create { name, cni } => kueue_dev::commands::cluster::create(name, cni),
+        ClusterCommands::Delete { name } => kueue_dev::commands::cluster::delete(name),
+        ClusterCommands::List => kueue_dev::commands::cluster::list(),
     }
 }
 
 fn handle_deploy_command(command: DeployCommands) -> Result<()> {
     match command {
-        DeployCommands::Kind { name, images, skip_tests } => {
-            kueue_dev::commands::deploy::deploy_kind(name, images, skip_tests)
-        }
+        DeployCommands::Kind {
+            name,
+            images,
+            skip_tests,
+        } => kueue_dev::commands::deploy::deploy_kind(name, images, skip_tests),
         DeployCommands::Olm { bundle, name } => {
             use kueue_dev::install::olm;
             use std::env;
@@ -286,9 +312,11 @@ fn handle_test_command(command: TestCommands) -> Result<()> {
             let kc = kubeconfig.map(PathBuf::from);
             kueue_dev::commands::test::run_tests_with_retry(focus, kc)
         }
-        TestCommands::Kind { name, focus, images } => {
-            kueue_dev::commands::test::run_tests_kind(name, focus, images)
-        }
+        TestCommands::Kind {
+            name,
+            focus,
+            images,
+        } => kueue_dev::commands::test::run_tests_kind(name, focus, images),
         TestCommands::Openshift { focus } => {
             // For OpenShift, we expect the user to be logged in with oc
             // The tests will use the current context
@@ -300,7 +328,7 @@ fn handle_test_command(command: TestCommands) -> Result<()> {
 fn handle_cleanup_command(kubeconfig: Option<String>) -> Result<()> {
     use std::path::PathBuf;
 
-    let kc = kubeconfig.as_ref().map(|s| PathBuf::from(s));
+    let kc = kubeconfig.as_ref().map(PathBuf::from);
     kueue_dev::commands::cleanup::cleanup(kc.as_deref())
 }
 
@@ -380,8 +408,14 @@ fn handle_check_command(kind: bool, openshift: bool, olm: bool) -> Result<()> {
 fn handle_interactive_command(kubeconfig: Option<String>) -> Result<()> {
     use std::path::PathBuf;
 
-    let kc = kubeconfig.as_ref().map(|s| PathBuf::from(s));
+    let kc = kubeconfig.as_ref().map(PathBuf::from);
     kueue_dev::commands::interactive::show_menu(kc.as_deref())
+}
+
+fn handle_completion_command(shell: Shell) -> Result<()> {
+    let mut cmd = Cli::command();
+    generate(shell, &mut cmd, "kueue-dev", &mut io::stdout());
+    Ok(())
 }
 
 fn handle_version_command() -> Result<()> {

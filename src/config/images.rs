@@ -87,7 +87,10 @@ mod tests {
         temp.write_all(json.as_bytes()).unwrap();
 
         let config = ImageConfig::load(temp.path()).unwrap();
-        assert_eq!(config.operator().unwrap(), "quay.io/example/operator:latest");
+        assert_eq!(
+            config.operator().unwrap(),
+            "quay.io/example/operator:latest"
+        );
         assert_eq!(config.operand().unwrap(), "quay.io/example/operand:latest");
     }
 

@@ -2,7 +2,8 @@
 
 use anyhow::Result;
 use std::env;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
+use std::str::FromStr;
 
 use crate::config::images::ImageConfig;
 use crate::install::{calico, cert_manager, jobset, leaderworkerset, operator};
@@ -14,11 +15,7 @@ const JOBSET_VERSION: &str = "v0.10.1";
 const LEADERWORKERSET_VERSION: &str = "v0.7.0";
 
 /// Handle deploy kind command
-pub fn deploy_kind(
-    cluster_name: String,
-    images_file: String,
-    skip_tests: bool,
-) -> Result<()> {
+pub fn deploy_kind(cluster_name: String, images_file: String, skip_tests: bool) -> Result<()> {
     crate::log_info!("Deploying kueue-operator to kind cluster: {}", cluster_name);
 
     // Get project root
@@ -48,7 +45,8 @@ pub fn deploy_kind(
     if !cluster.exists()? {
         return Err(anyhow::anyhow!(
             "Cluster '{}' does not exist. Create it first with: kueue-dev cluster create --name {}",
-            cluster_name, cluster_name
+            cluster_name,
+            cluster_name
         ));
     }
 
@@ -93,7 +91,9 @@ pub fn deploy_kind(
     crate::log_info!("Kubeconfig: {}", kubeconfig_path.display());
     crate::log_info!("");
     crate::log_info!("To view operator logs:");
-    crate::log_info!("  kubectl logs -n openshift-kueue-operator -l name=openshift-kueue-operator -f");
+    crate::log_info!(
+        "  kubectl logs -n openshift-kueue-operator -l name=openshift-kueue-operator -f"
+    );
     crate::log_info!("");
 
     if skip_tests {

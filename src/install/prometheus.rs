@@ -1,8 +1,8 @@
 //! Prometheus operator installation
 
+use crate::k8s::kubectl;
 use anyhow::{Context, Result};
 use std::path::Path;
-use crate::k8s::kubectl;
 
 /// Install Prometheus operator
 pub fn install_prometheus_operator(version: &str, kubeconfig: Option<&Path>) -> Result<()> {
@@ -28,7 +28,12 @@ pub fn install_prometheus_operator(version: &str, kubeconfig: Option<&Path>) -> 
     temp_file.flush()?;
 
     kubectl::run_kubectl(
-        &["apply", "--server-side", "-f", temp_file.path().to_str().unwrap()],
+        &[
+            "apply",
+            "--server-side",
+            "-f",
+            temp_file.path().to_str().unwrap(),
+        ],
         kubeconfig,
     )?;
 
@@ -189,7 +194,8 @@ spec:
         Some("openshift-monitoring"),
         "300s",
         kubeconfig,
-    ).ok(); // Ignore errors, might take time
+    )
+    .ok(); // Ignore errors, might take time
 
     crate::log_info!("Prometheus instance created successfully");
     Ok(())

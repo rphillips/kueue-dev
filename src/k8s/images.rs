@@ -1,8 +1,8 @@
 //! Container image management and loading
 
-use anyhow::{Context, Result};
 use crate::config::images::ImageConfig;
 use crate::utils::ContainerRuntime;
+use anyhow::{Context, Result};
 
 /// Load images into kind cluster
 pub fn load_images_to_kind(
@@ -30,12 +30,18 @@ pub fn load_images_to_kind(
     ];
 
     // Verify and pull images if needed
-    crate::log_info!("Verifying images exist in local registry{}...",
-        if pull_if_missing { " (pulling if needed)" } else { "" }
+    crate::log_info!(
+        "Verifying images exist in local registry{}...",
+        if pull_if_missing {
+            " (pulling if needed)"
+        } else {
+            ""
+        }
     );
 
     for (name, image) in &images {
-        runtime.ensure_image(image, pull_if_missing)
+        runtime
+            .ensure_image(image, pull_if_missing)
             .with_context(|| format!("Failed to ensure {} image: {}", name, image))?;
     }
 
@@ -46,7 +52,8 @@ pub fn load_images_to_kind(
 
     for (name, image) in &images {
         crate::log_info!("Loading {} image: {}", name, image);
-        runtime.load_to_kind(image, cluster_name)
+        runtime
+            .load_to_kind(image, cluster_name)
             .with_context(|| format!("Failed to load {} image to kind", name))?;
     }
 

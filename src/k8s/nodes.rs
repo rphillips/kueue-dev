@@ -1,8 +1,8 @@
 //! Node management operations
 
+use crate::k8s::kubectl;
 use anyhow::{Context, Result};
 use std::path::Path;
-use crate::k8s::kubectl;
 
 /// Label worker nodes with instance-type for e2e tests
 pub fn label_worker_nodes(kubeconfig: Option<&Path>) -> Result<()> {

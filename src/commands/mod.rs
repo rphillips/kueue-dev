@@ -3,6 +3,6 @@
 pub mod cleanup;
 pub mod cluster;
 pub mod deploy;
-pub mod test;
 pub mod interactive;
 pub mod openshift;
+pub mod test;

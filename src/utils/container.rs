@@ -77,9 +77,12 @@ impl ContainerRuntime {
             cmd.env("KIND_EXPERIMENTAL_PROVIDER", "podman");
         }
 
-        let status = cmd
-            .status()
-            .with_context(|| format!("Failed to load image {} to kind cluster {}", image, cluster_name))?;
+        let status = cmd.status().with_context(|| {
+            format!(
+                "Failed to load image {} to kind cluster {}",
+                image, cluster_name
+            )
+        })?;
 
         if !status.success() {
             return Err(anyhow!("Failed to load image {} to kind cluster", image));
@@ -146,7 +149,10 @@ mod tests {
         // We can't guarantee either is installed, so just test that it returns something sensible
         match result {
             Ok(runtime) => {
-                assert!(matches!(runtime, ContainerRuntime::Docker | ContainerRuntime::Podman));
+                assert!(matches!(
+                    runtime,
+                    ContainerRuntime::Docker | ContainerRuntime::Podman
+                ));
             }
             Err(e) => {
                 // If neither is available, error message should mention both

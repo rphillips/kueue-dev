@@ -63,7 +63,13 @@ fn port_forward_prometheus(kubeconfig: Option<&Path>) -> Result<()> {
         cmd.env("KUBECONFIG", kc);
     }
 
-    cmd.args(&["port-forward", "-n", "openshift-monitoring", "svc/prometheus", "9090:9090"]);
+    cmd.args([
+        "port-forward",
+        "-n",
+        "openshift-monitoring",
+        "svc/prometheus",
+        "9090:9090",
+    ]);
 
     let _ = cmd.status(); // Ignore error from Ctrl+C
 
@@ -80,10 +86,14 @@ fn view_prometheus_operator_logs(kubeconfig: Option<&Path>) -> Result<()> {
         cmd.env("KUBECONFIG", kc);
     }
 
-    cmd.args(&[
-        "logs", "-n", "default",
-        "-l", "app.kubernetes.io/name=prometheus-operator",
-        "-f", "--tail=100",
+    cmd.args([
+        "logs",
+        "-n",
+        "default",
+        "-l",
+        "app.kubernetes.io/name=prometheus-operator",
+        "-f",
+        "--tail=100",
     ]);
 
     let _ = cmd.status(); // Ignore error from Ctrl+C
@@ -101,10 +111,14 @@ fn view_prometheus_logs(kubeconfig: Option<&Path>) -> Result<()> {
         cmd.env("KUBECONFIG", kc);
     }
 
-    cmd.args(&[
-        "logs", "-n", "openshift-monitoring",
-        "-l", "app.kubernetes.io/name=prometheus",
-        "-f", "--tail=100",
+    cmd.args([
+        "logs",
+        "-n",
+        "openshift-monitoring",
+        "-l",
+        "app.kubernetes.io/name=prometheus",
+        "-f",
+        "--tail=100",
     ]);
 
     let _ = cmd.status(); // Ignore error from Ctrl+C
@@ -122,10 +136,14 @@ fn view_kueue_logs(kubeconfig: Option<&Path>) -> Result<()> {
         cmd.env("KUBECONFIG", kc);
     }
 
-    cmd.args(&[
-        "logs", "-n", "openshift-kueue-operator",
-        "-l", "name=openshift-kueue-operator",
-        "-f", "--tail=100",
+    cmd.args([
+        "logs",
+        "-n",
+        "openshift-kueue-operator",
+        "-l",
+        "name=openshift-kueue-operator",
+        "-f",
+        "--tail=100",
     ]);
 
     let _ = cmd.status(); // Ignore error from Ctrl+C
@@ -140,27 +158,60 @@ fn show_cluster_info(kubeconfig: Option<&Path>) -> Result<()> {
 
     // Show Prometheus Operator deployment
     crate::log_info!("Prometheus Operator Deployment (default namespace):");
-    kubectl::run_kubectl(&["get", "deployment", "-n", "default", "prometheus-operator"], kubeconfig).ok();
+    kubectl::run_kubectl(
+        &["get", "deployment", "-n", "default", "prometheus-operator"],
+        kubeconfig,
+    )
+    .ok();
     println!();
 
     // Show Prometheus pods
     crate::log_info!("Prometheus Pods (openshift-monitoring namespace):");
-    kubectl::run_kubectl(&["get", "pods", "-n", "openshift-monitoring", "-l", "app.kubernetes.io/name=prometheus"], kubeconfig).ok();
+    kubectl::run_kubectl(
+        &[
+            "get",
+            "pods",
+            "-n",
+            "openshift-monitoring",
+            "-l",
+            "app.kubernetes.io/name=prometheus",
+        ],
+        kubeconfig,
+    )
+    .ok();
     println!();
 
     // Show Prometheus service
     crate::log_info!("Prometheus Service:");
-    kubectl::run_kubectl(&["get", "svc", "-n", "openshift-monitoring", "prometheus"], kubeconfig).ok();
+    kubectl::run_kubectl(
+        &["get", "svc", "-n", "openshift-monitoring", "prometheus"],
+        kubeconfig,
+    )
+    .ok();
     println!();
 
     // Show Kueue Operator deployment
     crate::log_info!("Kueue Operator Deployment:");
-    kubectl::run_kubectl(&["get", "deployment", "-n", "openshift-kueue-operator", "openshift-kueue-operator"], kubeconfig).ok();
+    kubectl::run_kubectl(
+        &[
+            "get",
+            "deployment",
+            "-n",
+            "openshift-kueue-operator",
+            "openshift-kueue-operator",
+        ],
+        kubeconfig,
+    )
+    .ok();
     println!();
 
     // Show Kueue Operator pods
     crate::log_info!("Kueue Operator Pods:");
-    kubectl::run_kubectl(&["get", "pods", "-n", "openshift-kueue-operator"], kubeconfig).ok();
+    kubectl::run_kubectl(
+        &["get", "pods", "-n", "openshift-kueue-operator"],
+        kubeconfig,
+    )
+    .ok();
     println!();
 
     Ok(())

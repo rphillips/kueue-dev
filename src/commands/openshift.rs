@@ -2,7 +2,7 @@
 
 use anyhow::{Context, Result};
 use std::env;
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 
 use crate::config::images::ImageConfig;
 use crate::install::{cert_manager, jobset, leaderworkerset, operator};
@@ -17,7 +17,7 @@ pub fn verify_connection() -> Result<()> {
 
     // Check if logged in
     let output = std::process::Command::new("oc")
-        .args(&["whoami"])
+        .args(["whoami"])
         .output()
         .context("Failed to run 'oc whoami'. Is oc installed and are you logged in?")?;
 
@@ -30,7 +30,7 @@ pub fn verify_connection() -> Result<()> {
     let current_user = String::from_utf8(output.stdout)?.trim().to_string();
 
     let output = std::process::Command::new("oc")
-        .args(&["whoami", "--show-server"])
+        .args(["whoami", "--show-server"])
         .output()?;
 
     let cluster_url = String::from_utf8(output.stdout)?.trim().to_string();
@@ -40,12 +40,14 @@ pub fn verify_connection() -> Result<()> {
 
     // Check for cluster-admin permissions
     let output = std::process::Command::new("oc")
-        .args(&["auth", "can-i", "*", "*", "--all-namespaces"])
+        .args(["auth", "can-i", "*", "*", "--all-namespaces"])
         .output()?;
 
     if !output.status.success() {
         crate::log_warn!("Warning: You may not have cluster-admin permissions");
-        crate::log_warn!("This script requires elevated permissions to install cert-manager and CRDs");
+        crate::log_warn!(
+            "This script requires elevated permissions to install cert-manager and CRDs"
+        );
 
         if !crate::utils::confirm("Continue anyway?")? {
             crate::log_info!("Exiting...");
@@ -58,10 +60,7 @@ pub fn verify_connection() -> Result<()> {
 }
 
 /// Deploy to OpenShift cluster
-pub fn deploy_openshift(
-    images_file: String,
-    skip_tests: bool,
-) -> Result<()> {
+pub fn deploy_openshift(images_file: String, skip_tests: bool) -> Result<()> {
     crate::log_info!("Starting kueue-operator deployment on OpenShift cluster...");
 
     // Verify connection
@@ -135,7 +134,7 @@ pub fn deploy_openshift(
 /// Get current kubectl/oc context
 fn get_current_context() -> Result<String> {
     let output = std::process::Command::new("oc")
-        .args(&["config", "current-context"])
+        .args(["config", "current-context"])
         .output()?;
 
     Ok(String::from_utf8(output.stdout)?.trim().to_string())
@@ -143,9 +142,7 @@ fn get_current_context() -> Result<String> {
 
 /// Get current user
 fn get_current_user() -> Result<String> {
-    let output = std::process::Command::new("oc")
-        .args(&["whoami"])
-        .output()?;
+    let output = std::process::Command::new("oc").args(["whoami"]).output()?;
 
     Ok(String::from_utf8(output.stdout)?.trim().to_string())
 }

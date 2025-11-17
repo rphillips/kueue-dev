@@ -1,9 +1,9 @@
 //! Kueue operator installation
 
-use anyhow::{Context, Result};
-use std::path::{Path, PathBuf};
-use crate::k8s::kubectl;
 use crate::config::images::ImageConfig;
+use crate::k8s::kubectl;
+use anyhow::{Context, Result};
+use std::path::Path;
 
 /// Install Kueue operator CRDs
 pub fn install_crds(project_root: &Path, kubeconfig: Option<&Path>) -> Result<()> {
@@ -47,18 +47,16 @@ pub fn install_operator(
     let temp_dir = tempfile::tempdir().context("Failed to create temp directory")?;
     let temp_path = temp_dir.path();
 
-    crate::log_info!("Creating temporary deployment files in {}...", temp_path.display());
+    crate::log_info!(
+        "Creating temporary deployment files in {}...",
+        temp_path.display()
+    );
 
     // Copy deploy files to temp directory
     copy_deploy_files(project_root, temp_path)?;
 
     // Update deployment file with images
-    update_deployment_images(
-        temp_path,
-        operator_image,
-        operand_image,
-        must_gather_image,
-    )?;
+    update_deployment_images(temp_path, operator_image, operand_image, must_gather_image)?;
 
     // Apply manifests in order
     apply_operator_manifests(temp_path, kubeconfig)?;
@@ -71,7 +69,8 @@ pub fn install_operator(
         Some("openshift-kueue-operator"),
         "300s",
         kubeconfig,
-    ).context("Operator deployment not ready")?;
+    )
+    .context("Operator deployment not ready")?;
 
     crate::log_info!("Operator installed successfully");
     Ok(())
@@ -141,23 +140,26 @@ fn update_deployment_images(
     );
 
     // Set imagePullPolicy to IfNotPresent for kind clusters
-    let content = content.replace(
-        "imagePullPolicy: Always",
-        "imagePullPolicy: IfNotPresent",
-    );
+    let content = content.replace("imagePullPolicy: Always", "imagePullPolicy: IfNotPresent");
 
     std::fs::write(&deployment_file, content)?;
 
     // Verify replacements worked
     let final_content = std::fs::read_to_string(&deployment_file)?;
     if !final_content.contains(operator_image) {
-        return Err(anyhow::anyhow!("Failed to update operator image in deployment file"));
+        return Err(anyhow::anyhow!(
+            "Failed to update operator image in deployment file"
+        ));
     }
     if !final_content.contains(operand_image) {
-        return Err(anyhow::anyhow!("Failed to update operand image in deployment file"));
+        return Err(anyhow::anyhow!(
+            "Failed to update operand image in deployment file"
+        ));
     }
     if !final_content.contains(must_gather_image) {
-        return Err(anyhow::anyhow!("Failed to update must-gather image in deployment file"));
+        return Err(anyhow::anyhow!(
+            "Failed to update must-gather image in deployment file"
+        ));
     }
 
     crate::log_info!("Deployment file updated with images");

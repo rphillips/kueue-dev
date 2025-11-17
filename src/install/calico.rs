@@ -1,8 +1,8 @@
 //! Calico CNI installation
 
+use crate::k8s::kubectl;
 use anyhow::{Context, Result};
 use std::path::Path;
-use crate::k8s::kubectl;
 
 const CALICO_VERSION: &str = "v3.28.2";
 
@@ -23,8 +23,7 @@ pub fn install(kubeconfig: Option<&Path>) -> Result<()> {
         .text()
         .context("Failed to read Calico operator manifest")?;
 
-    kubectl::create_yaml(&operator_yaml, kubeconfig)
-        .context("Failed to apply Calico operator")?;
+    kubectl::create_yaml(&operator_yaml, kubeconfig).context("Failed to apply Calico operator")?;
 
     crate::log_info!("Waiting for Calico CRDs to be established...");
 
@@ -35,7 +34,8 @@ pub fn install(kubeconfig: Option<&Path>) -> Result<()> {
         None,
         "60s",
         kubeconfig,
-    ).context("Failed waiting for Installation CRD")?;
+    )
+    .context("Failed waiting for Installation CRD")?;
 
     kubectl::wait_for_condition(
         "crd/apiservers.operator.tigera.io",
@@ -43,7 +43,8 @@ pub fn install(kubeconfig: Option<&Path>) -> Result<()> {
         None,
         "60s",
         kubeconfig,
-    ).context("Failed waiting for APIServer CRD")?;
+    )
+    .context("Failed waiting for APIServer CRD")?;
 
     crate::log_info!("Applying Calico custom resources...");
 
@@ -80,7 +81,8 @@ spec: {}
         Some("tigera-operator"),
         "300s",
         kubeconfig,
-    ).ok(); // Ignore errors, continue
+    )
+    .ok(); // Ignore errors, continue
 
     // Wait for calico-system pods (may take longer)
     kubectl::wait_for_condition(
@@ -89,7 +91,8 @@ spec: {}
         Some("calico-system"),
         "300s",
         kubeconfig,
-    ).ok(); // Ignore errors, continue
+    )
+    .ok(); // Ignore errors, continue
 
     // Wait for calico-apiserver pods (may not exist in all deployments)
     kubectl::wait_for_condition(
@@ -98,19 +101,15 @@ spec: {}
         Some("calico-apiserver"),
         "60s",
         kubeconfig,
-    ).ok(); // Ignore errors, it's optional
+    )
+    .ok(); // Ignore errors, it's optional
 
     crate::log_info!("Calico CNI installed successfully");
 
     // Wait for nodes to be ready
     crate::log_info!("Waiting for all nodes to be ready...");
-    kubectl::wait_for_condition(
-        "nodes",
-        "condition=Ready",
-        None,
-        "180s",
-        kubeconfig,
-    ).context("Nodes did not become ready")?;
+    kubectl::wait_for_condition("nodes", "condition=Ready", None, "180s", kubeconfig)
+        .context("Nodes did not become ready")?;
 
     // Display node resources
     crate::log_info!("Cluster node resources:");

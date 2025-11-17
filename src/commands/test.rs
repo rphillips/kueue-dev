@@ -37,10 +37,7 @@ pub fn generate_skip_pattern() -> String {
 }
 
 /// Run e2e tests on existing cluster
-pub fn run_tests(
-    focus: Option<String>,
-    kubeconfig: Option<PathBuf>,
-) -> Result<()> {
+pub fn run_tests(focus: Option<String>, kubeconfig: Option<PathBuf>) -> Result<()> {
     let project_root = get_project_root()?;
 
     // Determine kubeconfig
@@ -70,10 +67,7 @@ pub fn run_tests(
 }
 
 /// Run tests with retry loop
-pub fn run_tests_with_retry(
-    focus: Option<String>,
-    kubeconfig: Option<PathBuf>,
-) -> Result<()> {
+pub fn run_tests_with_retry(focus: Option<String>, kubeconfig: Option<PathBuf>) -> Result<()> {
     let project_root = get_project_root()?;
 
     // Determine kubeconfig
@@ -208,12 +202,15 @@ fn ensure_ginkgo(project_root: &Path) -> Result<PathBuf> {
     crate::log_info!("Installing ginkgo...");
 
     // Create bin directory
-    std::fs::create_dir_all(&bin_dir)
-        .context("Failed to create bin directory")?;
+    std::fs::create_dir_all(&bin_dir).context("Failed to create bin directory")?;
 
     // Install ginkgo
     let status = Command::new("go")
-        .args(&["install", "-mod=mod", "github.com/onsi/ginkgo/v2/ginkgo@v2.1.4"])
+        .args([
+            "install",
+            "-mod=mod",
+            "github.com/onsi/ginkgo/v2/ginkgo@v2.1.4",
+        ])
         .env("GOBIN", &bin_dir)
         .env("GO111MODULE", "on")
         .status()
@@ -224,7 +221,9 @@ fn ensure_ginkgo(project_root: &Path) -> Result<PathBuf> {
     }
 
     if !ginkgo_bin.exists() {
-        return Err(anyhow::anyhow!("ginkgo binary not found after installation"));
+        return Err(anyhow::anyhow!(
+            "ginkgo binary not found after installation"
+        ));
     }
 
     crate::log_info!("Ginkgo installed successfully");

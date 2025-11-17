@@ -14,9 +14,7 @@ pub fn run_kubectl(args: &[&str], kubeconfig: Option<&Path>) -> Result<()> {
 
     cmd.args(args);
 
-    let status = cmd
-        .status()
-        .context("Failed to run kubectl command")?;
+    let status = cmd.status().context("Failed to run kubectl command")?;
 
     if !status.success() {
         return Err(anyhow!("kubectl command failed: {}", args.join(" ")));
@@ -35,13 +33,15 @@ pub fn run_kubectl_output(args: &[&str], kubeconfig: Option<&Path>) -> Result<St
 
     cmd.args(args);
 
-    let output = cmd
-        .output()
-        .context("Failed to run kubectl command")?;
+    let output = cmd.output().context("Failed to run kubectl command")?;
 
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(anyhow!("kubectl command failed: {}\n{}", args.join(" "), stderr));
+        return Err(anyhow!(
+            "kubectl command failed: {}\n{}",
+            args.join(" "),
+            stderr
+        ));
     }
 
     Ok(String::from_utf8(output.stdout)?)
@@ -66,12 +66,12 @@ pub fn apply_yaml(yaml: &str, kubeconfig: Option<&Path>) -> Result<()> {
 
     if let Some(mut stdin) = child.stdin.take() {
         use std::io::Write;
-        stdin.write_all(yaml.as_bytes())
+        stdin
+            .write_all(yaml.as_bytes())
             .context("Failed to write YAML to kubectl")?;
     }
 
-    let status = child.wait()
-        .context("Failed to wait for kubectl apply")?;
+    let status = child.wait().context("Failed to wait for kubectl apply")?;
 
     if !status.success() {
         return Err(anyhow!("kubectl apply failed"));
@@ -99,12 +99,12 @@ pub fn create_yaml(yaml: &str, kubeconfig: Option<&Path>) -> Result<()> {
 
     if let Some(mut stdin) = child.stdin.take() {
         use std::io::Write;
-        stdin.write_all(yaml.as_bytes())
+        stdin
+            .write_all(yaml.as_bytes())
             .context("Failed to write YAML to kubectl")?;
     }
 
-    let status = child.wait()
-        .context("Failed to wait for kubectl create")?;
+    let status = child.wait().context("Failed to wait for kubectl create")?;
 
     if !status.success() {
         return Err(anyhow!("kubectl create failed"));
@@ -146,12 +146,22 @@ pub fn get_nodes(output_format: &str, kubeconfig: Option<&Path>) -> Result<Strin
 
 /// Label a node
 pub fn label_node(node_name: &str, label: &str, kubeconfig: Option<&Path>) -> Result<()> {
-    run_kubectl(&["label", "nodes", node_name, label, "--overwrite"], kubeconfig)
+    run_kubectl(
+        &["label", "nodes", node_name, label, "--overwrite"],
+        kubeconfig,
+    )
 }
 
 /// Get resources with jsonpath
-pub fn get_with_jsonpath(resource: &str, jsonpath: &str, kubeconfig: Option<&Path>) -> Result<String> {
-    run_kubectl_output(&["get", resource, "-o", &format!("jsonpath={}", jsonpath)], kubeconfig)
+pub fn get_with_jsonpath(
+    resource: &str,
+    jsonpath: &str,
+    kubeconfig: Option<&Path>,
+) -> Result<String> {
+    run_kubectl_output(
+        &["get", resource, "-o", &format!("jsonpath={}", jsonpath)],
+        kubeconfig,
+    )
 }
 
 #[cfg(test)]

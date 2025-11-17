@@ -3,10 +3,11 @@
 use anyhow::Result;
 use std::env;
 use std::path::PathBuf;
+use std::str::FromStr;
 
+use crate::install::calico;
 use crate::k8s::kind::{CniProvider, KindCluster};
 use crate::k8s::nodes;
-use crate::install::calico;
 
 /// Handle cluster create command
 pub fn create(name: String, cni: String) -> Result<()> {
@@ -70,7 +71,10 @@ pub fn delete(name: String) -> Result<()> {
         return Ok(());
     }
 
-    if !crate::utils::confirm(&format!("Are you sure you want to delete cluster '{}'?", name))? {
+    if !crate::utils::confirm(&format!(
+        "Are you sure you want to delete cluster '{}'?",
+        name
+    ))? {
         crate::log_info!("Deletion cancelled");
         return Ok(());
     }

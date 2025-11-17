@@ -1,8 +1,8 @@
 //! Cleanup command implementation for e2e test resources
 
-use anyhow::{Context, Result};
-use std::path::Path;
 use crate::k8s::kubectl;
+use anyhow::Result;
+use std::path::Path;
 
 /// Clean up e2e test resources
 pub fn cleanup(kubeconfig: Option<&Path>) -> Result<()> {
@@ -37,7 +37,11 @@ pub fn cleanup(kubeconfig: Option<&Path>) -> Result<()> {
 }
 
 /// Remove finalizers and delete a resource
-fn cleanup_resource(resource_type: &str, namespace: Option<&str>, kubeconfig: Option<&Path>) -> Result<()> {
+fn cleanup_resource(
+    resource_type: &str,
+    namespace: Option<&str>,
+    kubeconfig: Option<&Path>,
+) -> Result<()> {
     crate::log_info!("Removing finalizers from {}...", resource_type);
 
     // Get all resources of this type
@@ -62,7 +66,13 @@ fn cleanup_resource(resource_type: &str, namespace: Option<&str>, kubeconfig: Op
                     continue;
                 }
 
-                let mut patch_args = vec!["patch", resource, "--type=merge", "-p", r#"{"metadata":{"finalizers":[]}}"#];
+                let mut patch_args = vec![
+                    "patch",
+                    resource,
+                    "--type=merge",
+                    "-p",
+                    r#"{"metadata":{"finalizers":[]}}"#,
+                ];
                 if let Some(ns) = namespace {
                     patch_args.insert(1, "-n");
                     patch_args.insert(2, ns);
@@ -96,7 +106,8 @@ fn cleanup_priority_classes(kubeconfig: Option<&Path>) -> Result<()> {
     let output = kubectl::run_kubectl_output(&["get", "priorityclasses", "-o", "name"], kubeconfig);
 
     if let Ok(pcs_str) = output {
-        let priority_classes: Vec<&str> = pcs_str.lines()
+        let priority_classes: Vec<&str> = pcs_str
+            .lines()
             .filter(|line| !line.contains("system-"))
             .collect();
 
@@ -109,9 +120,16 @@ fn cleanup_priority_classes(kubeconfig: Option<&Path>) -> Result<()> {
                 }
 
                 kubectl::run_kubectl(
-                    &["patch", pc, "--type=merge", "-p", r#"{"metadata":{"finalizers":[]}}"#],
+                    &[
+                        "patch",
+                        pc,
+                        "--type=merge",
+                        "-p",
+                        r#"{"metadata":{"finalizers":[]}}"#,
+                    ],
                     kubeconfig,
-                ).ok(); // Ignore errors
+                )
+                .ok(); // Ignore errors
             }
 
             // Delete PriorityClasses
@@ -134,14 +152,15 @@ fn cleanup_test_workloads(kubeconfig: Option<&Path>) -> Result<()> {
     let output = kubectl::run_kubectl_output(&["get", "ns", "-o", "name"], kubeconfig);
 
     if let Ok(namespaces_str) = output {
-        let test_namespaces: Vec<&str> = namespaces_str.lines()
+        let test_namespaces: Vec<&str> = namespaces_str
+            .lines()
             .filter(|line| {
-                line.contains("e2e-") ||
-                line.contains("sts-e2e-") ||
-                line.contains("deployment-e2e-") ||
-                line.contains("lws-e2e-") ||
-                line.contains("pod-e2e-") ||
-                line.contains("jobset-e2e-")
+                line.contains("e2e-")
+                    || line.contains("sts-e2e-")
+                    || line.contains("deployment-e2e-")
+                    || line.contains("lws-e2e-")
+                    || line.contains("pod-e2e-")
+                    || line.contains("jobset-e2e-")
             })
             .collect();
 
@@ -166,12 +185,25 @@ fn cleanup_test_workloads(kubeconfig: Option<&Path>) -> Result<()> {
                     }
 
                     kubectl::run_kubectl(
-                        &["patch", workload, "-n", namespace, "--type=merge", "-p", r#"{"metadata":{"finalizers":[]}}"#],
+                        &[
+                            "patch",
+                            workload,
+                            "-n",
+                            namespace,
+                            "--type=merge",
+                            "-p",
+                            r#"{"metadata":{"finalizers":[]}}"#,
+                        ],
                         kubeconfig,
-                    ).ok(); // Ignore errors
+                    )
+                    .ok(); // Ignore errors
                 }
 
-                kubectl::run_kubectl(&["delete", "workloads", "-n", namespace, "--all"], kubeconfig).ok();
+                kubectl::run_kubectl(
+                    &["delete", "workloads", "-n", namespace, "--all"],
+                    kubeconfig,
+                )
+                .ok();
             }
         }
     }
@@ -186,14 +218,15 @@ fn cleanup_test_namespaces(kubeconfig: Option<&Path>) -> Result<()> {
     let output = kubectl::run_kubectl_output(&["get", "ns", "-o", "name"], kubeconfig);
 
     if let Ok(namespaces_str) = output {
-        let test_namespaces: Vec<&str> = namespaces_str.lines()
+        let test_namespaces: Vec<&str> = namespaces_str
+            .lines()
             .filter(|line| {
-                line.contains("e2e-") ||
-                line.contains("sts-e2e-") ||
-                line.contains("deployment-e2e-") ||
-                line.contains("lws-e2e-") ||
-                line.contains("pod-e2e-") ||
-                line.contains("jobset-e2e-")
+                line.contains("e2e-")
+                    || line.contains("sts-e2e-")
+                    || line.contains("deployment-e2e-")
+                    || line.contains("lws-e2e-")
+                    || line.contains("pod-e2e-")
+                    || line.contains("jobset-e2e-")
             })
             .collect();
 
@@ -206,9 +239,16 @@ fn cleanup_test_namespaces(kubeconfig: Option<&Path>) -> Result<()> {
                 }
 
                 kubectl::run_kubectl(
-                    &["patch", ns, "--type=merge", "-p", r#"{"metadata":{"finalizers":[]}}"#],
+                    &[
+                        "patch",
+                        ns,
+                        "--type=merge",
+                        "-p",
+                        r#"{"metadata":{"finalizers":[]}}"#,
+                    ],
                     kubeconfig,
-                ).ok(); // Ignore errors
+                )
+                .ok(); // Ignore errors
             }
 
             // Delete namespaces

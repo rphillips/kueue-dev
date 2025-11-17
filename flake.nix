@@ -23,6 +23,7 @@
             eza
             fd
             rust-bin.stable.latest.default
+            mdbook
           ];
 
           shellHook = ''

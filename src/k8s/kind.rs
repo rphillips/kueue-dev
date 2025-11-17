@@ -3,6 +3,7 @@
 use anyhow::{anyhow, Context, Result};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::str::FromStr;
 
 #[derive(Debug, Clone)]
 pub struct KindCluster {
@@ -16,12 +17,17 @@ pub enum CniProvider {
     Default,
 }
 
-impl CniProvider {
-    pub fn from_str(s: &str) -> Result<Self> {
+impl FromStr for CniProvider {
+    type Err = anyhow::Error;
+
+    fn from_str(s: &str) -> Result<Self> {
         match s.to_lowercase().as_str() {
             "calico" => Ok(CniProvider::Calico),
             "default" => Ok(CniProvider::Default),
-            _ => Err(anyhow!("Invalid CNI provider: {}. Must be 'calico' or 'default'", s)),
+            _ => Err(anyhow!(
+                "Invalid CNI provider: {}. Must be 'calico' or 'default'",
+                s
+            )),
         }
     }
 }
@@ -74,7 +80,10 @@ impl KindCluster {
         if self.exists()? {
             crate::log_warn!("Cluster '{}' already exists", self.name);
 
-            if !crate::utils::confirm(&format!("Do you want to delete and recreate cluster '{}'?", self.name))? {
+            if !crate::utils::confirm(&format!(
+                "Do you want to delete and recreate cluster '{}'?",
+                self.name
+            ))? {
                 crate::log_info!("Using existing cluster");
                 return self.get_kubeconfig_path(project_root);
             }
@@ -98,11 +107,13 @@ impl KindCluster {
         // Write config to stdin
         if let Some(mut stdin) = child.stdin.take() {
             use std::io::Write;
-            stdin.write_all(config.as_bytes())
+            stdin
+                .write_all(config.as_bytes())
                 .context("Failed to write kind config")?;
         }
 
-        let status = child.wait()
+        let status = child
+            .wait()
             .context("Failed to wait for kind create cluster")?;
 
         if !status.success() {
@@ -166,7 +177,10 @@ impl KindCluster {
             .context("Failed to get kind kubeconfig")?;
 
         if !output.status.success() {
-            return Err(anyhow!("Failed to get kubeconfig for cluster '{}'", self.name));
+            return Err(anyhow!(
+                "Failed to get kubeconfig for cluster '{}'",
+                self.name
+            ));
         }
 
         std::fs::write(&kubeconfig_path, output.stdout)
@@ -222,9 +236,18 @@ mod tests {
 
     #[test]
     fn test_cni_provider_from_str() {
-        assert_eq!(CniProvider::from_str("calico").unwrap(), CniProvider::Calico);
-        assert_eq!(CniProvider::from_str("default").unwrap(), CniProvider::Default);
-        assert_eq!(CniProvider::from_str("Calico").unwrap(), CniProvider::Calico);
+        assert_eq!(
+            CniProvider::from_str("calico").unwrap(),
+            CniProvider::Calico
+        );
+        assert_eq!(
+            CniProvider::from_str("default").unwrap(),
+            CniProvider::Default
+        );
+        assert_eq!(
+            CniProvider::from_str("Calico").unwrap(),
+            CniProvider::Calico
+        );
         assert!(CniProvider::from_str("invalid").is_err());
     }
 

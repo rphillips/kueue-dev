@@ -1,8 +1,8 @@
 //! cert-manager installation
 
+use crate::k8s::kubectl;
 use anyhow::{Context, Result};
 use std::path::Path;
-use crate::k8s::kubectl;
 
 /// Install cert-manager
 pub fn install(version: &str, kubeconfig: Option<&Path>) -> Result<()> {
@@ -41,7 +41,8 @@ pub fn install(version: &str, kubeconfig: Option<&Path>) -> Result<()> {
         Some("cert-manager"),
         "300s",
         kubeconfig,
-    ).context("cert-manager deployment not ready")?;
+    )
+    .context("cert-manager deployment not ready")?;
 
     kubectl::wait_for_condition(
         "deployment/cert-manager-webhook",
@@ -49,7 +50,8 @@ pub fn install(version: &str, kubeconfig: Option<&Path>) -> Result<()> {
         Some("cert-manager"),
         "300s",
         kubeconfig,
-    ).context("cert-manager-webhook deployment not ready")?;
+    )
+    .context("cert-manager-webhook deployment not ready")?;
 
     kubectl::wait_for_condition(
         "deployment/cert-manager-cainjector",
@@ -57,7 +59,8 @@ pub fn install(version: &str, kubeconfig: Option<&Path>) -> Result<()> {
         Some("cert-manager"),
         "300s",
         kubeconfig,
-    ).context("cert-manager-cainjector deployment not ready")?;
+    )
+    .context("cert-manager-cainjector deployment not ready")?;
 
     crate::log_info!("cert-manager installed successfully");
     Ok(())

@@ -1,8 +1,8 @@
 //! JobSet installation
 
+use crate::k8s::kubectl;
 use anyhow::{Context, Result};
 use std::path::Path;
-use crate::k8s::kubectl;
 
 /// Install JobSet
 pub fn install(version: &str, kubeconfig: Option<&Path>) -> Result<()> {
@@ -29,8 +29,7 @@ pub fn install(version: &str, kubeconfig: Option<&Path>) -> Result<()> {
         .text()
         .context("Failed to read JobSet manifest")?;
 
-    kubectl::apply_yaml(&jobset_yaml, kubeconfig)
-        .context("Failed to apply JobSet manifest")?;
+    kubectl::apply_yaml(&jobset_yaml, kubeconfig).context("Failed to apply JobSet manifest")?;
 
     crate::log_info!("Waiting for JobSet controller to be ready...");
 
@@ -41,7 +40,8 @@ pub fn install(version: &str, kubeconfig: Option<&Path>) -> Result<()> {
         Some("jobset-system"),
         "300s",
         kubeconfig,
-    ).context("JobSet controller deployment not ready")?;
+    )
+    .context("JobSet controller deployment not ready")?;
 
     crate::log_info!("JobSet installed successfully");
     Ok(())

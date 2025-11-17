@@ -1,8 +1,8 @@
 //! LeaderWorkerSet installation
 
+use crate::k8s::kubectl;
 use anyhow::{Context, Result};
 use std::path::Path;
-use crate::k8s::kubectl;
 
 /// Install LeaderWorkerSet
 pub fn install(version: &str, kubeconfig: Option<&Path>) -> Result<()> {
@@ -41,7 +41,8 @@ pub fn install(version: &str, kubeconfig: Option<&Path>) -> Result<()> {
         Some("lws-system"),
         "300s",
         kubeconfig,
-    ).context("LeaderWorkerSet controller deployment not ready")?;
+    )
+    .context("LeaderWorkerSet controller deployment not ready")?;
 
     crate::log_info!("LeaderWorkerSet installed successfully");
     Ok(())
