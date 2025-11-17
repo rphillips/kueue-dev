@@ -109,6 +109,10 @@ enum ClusterCommands {
         /// Cluster name
         #[arg(short, long, default_value = "kueue-test")]
         name: String,
+
+        /// Force deletion without confirmation
+        #[arg(short, long)]
+        force: bool,
     },
 
     /// List kind clusters
@@ -185,9 +189,13 @@ enum TestCommands {
         kubeconfig: Option<String>,
     },
 
-    /// Create kind cluster and run tests
-    Kind {
-        /// Cluster name
+    /// Deploy operator and run tests
+    Operator {
+        /// Type of cluster (kind or openshift)
+        #[arg(short = 't', long, value_parser = ["kind", "openshift"])]
+        r#type: String,
+
+        /// Cluster name (kind only)
         #[arg(short, long, default_value = "kueue-test")]
         name: String,
 
@@ -199,7 +207,7 @@ enum TestCommands {
         #[arg(short = 'l', long)]
         label_filter: Option<String>,
 
-        /// Path to related images JSON file
+        /// Path to related images JSON file (kind only)
         #[arg(long, default_value = "related_images.rphillips.json")]
         images: String,
 
@@ -217,11 +225,23 @@ enum TestCommands {
         kueue_namespace: Option<String>,
     },
 
-    /// Run tests on OpenShift cluster
-    Openshift {
+    /// Run upstream kueue tests (requires OpenShift cluster)
+    Upstream {
         /// Test focus pattern
         #[arg(short, long)]
         focus: Option<String>,
+
+        /// Label filter for tests (e.g., "!disruptive", "network-policy")
+        #[arg(short = 'l', long)]
+        label_filter: Option<String>,
+
+        /// Path to kubeconfig
+        #[arg(short, long, env = "KUBECONFIG")]
+        kubeconfig: Option<String>,
+
+        /// E2E target folder (default: singlecluster)
+        #[arg(long, default_value = "singlecluster")]
+        target: String,
     },
 }
 
@@ -297,7 +317,7 @@ fn main() -> Result<()> {
 fn handle_cluster_command(command: ClusterCommands) -> Result<()> {
     match command {
         ClusterCommands::Create { name, cni } => kueue_dev::commands::cluster::create(name, cni),
-        ClusterCommands::Delete { name } => kueue_dev::commands::cluster::delete(name),
+        ClusterCommands::Delete { name, force } => kueue_dev::commands::cluster::delete(name, force),
         ClusterCommands::List => kueue_dev::commands::cluster::list(),
     }
 }
@@ -372,7 +392,8 @@ fn handle_test_command(command: TestCommands) -> Result<()> {
             let kc = kubeconfig.map(PathBuf::from);
             kueue_dev::commands::test::run_tests_with_retry(focus, label_filter, kc)
         }
-        TestCommands::Kind {
+        TestCommands::Operator {
+            r#type,
             name,
             focus,
             label_filter,
@@ -381,21 +402,30 @@ fn handle_test_command(command: TestCommands) -> Result<()> {
             kueue_frameworks,
             kueue_namespace,
         } => {
-            use kueue_dev::commands::test::TestKindOptions;
-            kueue_dev::commands::test::run_tests_kind(TestKindOptions {
-                cluster_name: name,
-                focus,
-                label_filter,
-                images_file: images,
-                skip_kueue_cr,
-                kueue_frameworks,
-                kueue_namespace,
-            })
+            match r#type.as_str() {
+                "kind" => {
+                    use kueue_dev::commands::test::TestKindOptions;
+                    kueue_dev::commands::test::run_tests_kind(TestKindOptions {
+                        cluster_name: name,
+                        focus,
+                        label_filter,
+                        images_file: images,
+                        skip_kueue_cr,
+                        kueue_frameworks,
+                        kueue_namespace,
+                    })
+                }
+                "openshift" => {
+                    // For OpenShift, we expect the user to be logged in with oc
+                    // The tests will use the current context
+                    kueue_dev::commands::test::run_tests_with_retry(focus, label_filter, None)
+                }
+                _ => Err(anyhow::anyhow!("Invalid operator type: {}", r#type)),
+            }
         }
-        TestCommands::Openshift { focus } => {
-            // For OpenShift, we expect the user to be logged in with oc
-            // The tests will use the current context
-            kueue_dev::commands::test::run_tests_with_retry(focus, None, None)
+        TestCommands::Upstream { focus, label_filter, kubeconfig, target } => {
+            let kc = kubeconfig.map(PathBuf::from);
+            kueue_dev::commands::test::test_upstream(focus, label_filter, kc, target)
         }
     }
 }

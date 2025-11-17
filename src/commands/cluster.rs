@@ -61,7 +61,7 @@ pub fn create(name: String, cni: String) -> Result<()> {
 }
 
 /// Handle cluster delete command
-pub fn delete(name: String) -> Result<()> {
+pub fn delete(name: String, force: bool) -> Result<()> {
     crate::log_info!("Deleting kind cluster: {}", name);
 
     let cluster = KindCluster::new(name.clone(), CniProvider::Default);
@@ -71,12 +71,15 @@ pub fn delete(name: String) -> Result<()> {
         return Ok(());
     }
 
-    if !crate::utils::confirm(&format!(
-        "Are you sure you want to delete cluster '{}'?",
-        name
-    ))? {
-        crate::log_info!("Deletion cancelled");
-        return Ok(());
+    // Skip confirmation if force flag is set
+    if !force {
+        if !crate::utils::confirm(&format!(
+            "Are you sure you want to delete cluster '{}'?",
+            name
+        ))? {
+            crate::log_info!("Deletion cancelled");
+            return Ok(());
+        }
     }
 
     cluster.delete()?;

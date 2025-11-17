@@ -4,7 +4,17 @@ use anyhow::Result;
 use dialoguer::Confirm;
 
 /// Ask user for yes/no confirmation
+/// Respects the confirm_destructive setting from config
 pub fn confirm(prompt: &str) -> Result<bool> {
+    use crate::config::settings::Settings;
+
+    let settings = Settings::load();
+
+    // If confirm_destructive is false, auto-confirm
+    if !settings.behavior.confirm_destructive {
+        return Ok(true);
+    }
+
     let result = Confirm::new()
         .with_prompt(prompt)
         .default(false)

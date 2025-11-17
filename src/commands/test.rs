@@ -367,6 +367,269 @@ fn build_kueue_config_from_settings(
     builder.build()
 }
 
+/// Upstream test skip patterns from e2e-test-ocp.sh
+const UPSTREAM_TEST_SKIPS: &[&str] = &[
+    // do not deploy AppWrapper in OCP
+    "AppWrapper",
+    // do not deploy PyTorch in OCP
+    "PyTorch",
+    // do not deploy JobSet in OCP
+    "TrainJob",
+    // do not deploy LWS in OCP
+    "JAX",
+    // do not deploy KubeRay in OCP
+    "Kuberay",
+    // metrics setup is different than our OCP setup
+    "Metrics",
+    // ring -> we do not enable Fair sharing by default in our operator
+    "Fair",
+    // we do not enable this feature in our operator
+    "TopologyAwareScheduling",
+    // relies on particular CPU setup to force pods to not schedule
+    "Failed Pod can be replaced in group",
+    // relies on particular CPU setup
+    "should allow to schedule a group of diverse pods",
+    // relies on particular CPU setup
+    "StatefulSet created with WorkloadPriorityClass",
+    // We do not have kueuectl in our operator
+    "Kueuectl",
+];
+
+/// Generate upstream test skip pattern regex
+fn generate_upstream_skip_pattern() -> String {
+    format!("({})", UPSTREAM_TEST_SKIPS.join("|"))
+}
+
+/// Apply git patches to upstream kueue source
+fn apply_git_patches(upstream_dir: &Path) -> Result<()> {
+    crate::log_info!("Applying git patches to upstream kueue...");
+
+    let patch_dir = upstream_dir.join("patch");
+    if !patch_dir.exists() {
+        crate::log_warn!("No patch directory found at {}", patch_dir.display());
+        return Ok(());
+    }
+
+    // Get all .patch files
+    let patch_files = std::fs::read_dir(&patch_dir)
+        .context("Failed to read patch directory")?
+        .filter_map(|entry| entry.ok())
+        .filter(|entry| {
+            entry
+                .path()
+                .extension()
+                .and_then(|s| s.to_str())
+                == Some("patch")
+        })
+        .collect::<Vec<_>>();
+
+    if patch_files.is_empty() {
+        crate::log_info!("No patches found in {}", patch_dir.display());
+        return Ok(());
+    }
+
+    let src_dir = upstream_dir.join("src");
+    if !src_dir.exists() {
+        return Err(anyhow::anyhow!(
+            "Source directory not found at {}",
+            src_dir.display()
+        ));
+    }
+
+    for patch_file in patch_files {
+        let patch_path = patch_file.path();
+
+        // Check if patch can be applied (i.e., not already applied)
+        let check_status = Command::new("git")
+            .args(["apply", "--check", patch_path.to_str().unwrap()])
+            .current_dir(&src_dir)
+            .output()
+            .context("Failed to check git patch")?;
+
+        if check_status.status.success() {
+            // Patch can be applied, so apply it
+            crate::log_info!("Applying patch: {}", patch_path.display());
+
+            let status = Command::new("git")
+                .args(["apply", patch_path.to_str().unwrap()])
+                .current_dir(&src_dir)
+                .status()
+                .context("Failed to apply git patch")?;
+
+            if !status.success() {
+                return Err(anyhow::anyhow!(
+                    "Failed to apply patch {}",
+                    patch_path.display()
+                ));
+            }
+        } else {
+            // Patch cannot be applied, likely already applied
+            crate::log_info!(
+                "Patch {} already applied, skipping",
+                patch_path.display()
+            );
+        }
+    }
+
+    crate::log_info!("Git patches applied successfully");
+    Ok(())
+}
+
+/// Allow privileged access for OpenShift SCC
+fn allow_privileged_access(kubeconfig: Option<&PathBuf>) -> Result<()> {
+    crate::log_info!("Configuring OpenShift SCC for privileged access...");
+
+    let mut cmd = Command::new("oc");
+    cmd.args([
+        "adm",
+        "policy",
+        "add-scc-to-group",
+        "privileged",
+        "system:authenticated",
+        "system:serviceaccounts",
+    ]);
+
+    if let Some(kc) = kubeconfig {
+        cmd.env("KUBECONFIG", kc);
+    }
+
+    let status = cmd
+        .status()
+        .context("Failed to add privileged SCC")?;
+
+    if !status.success() {
+        return Err(anyhow::anyhow!("Failed to add privileged SCC"));
+    }
+
+    let mut cmd = Command::new("oc");
+    cmd.args([
+        "adm",
+        "policy",
+        "add-scc-to-group",
+        "anyuid",
+        "system:authenticated",
+        "system:serviceaccounts",
+    ]);
+
+    if let Some(kc) = kubeconfig {
+        cmd.env("KUBECONFIG", kc);
+    }
+
+    let status = cmd
+        .status()
+        .context("Failed to add anyuid SCC")?;
+
+    if !status.success() {
+        return Err(anyhow::anyhow!("Failed to add anyuid SCC"));
+    }
+
+    crate::log_info!("OpenShift SCC configured successfully");
+    Ok(())
+}
+
+/// Run upstream kueue tests
+pub fn test_upstream(
+    focus: Option<String>,
+    label_filter: Option<String>,
+    kubeconfig: Option<PathBuf>,
+    target: String,
+) -> Result<()> {
+    crate::log_info!("Running upstream kueue tests...");
+
+    // Get project root
+    let project_root = get_project_root()?;
+
+    // Get upstream kueue directory
+    let upstream_dir = project_root.join("upstream").join("kueue");
+    if !upstream_dir.exists() {
+        return Err(anyhow::anyhow!(
+            "Upstream kueue directory not found at {}",
+            upstream_dir.display()
+        ));
+    }
+
+    let upstream_src_dir = upstream_dir.join("src");
+    if !upstream_src_dir.exists() {
+        return Err(anyhow::anyhow!(
+            "Upstream kueue src directory not found at {}",
+            upstream_src_dir.display()
+        ));
+    }
+
+    // Apply patches
+    apply_git_patches(&upstream_dir)?;
+
+    // Label worker nodes
+    crate::log_info!("Labeling worker nodes for e2e tests...");
+    nodes::label_worker_nodes(kubeconfig.as_deref())?;
+
+    // Allow privileged access
+    allow_privileged_access(kubeconfig.as_ref())?;
+
+    // Ensure ginkgo is available
+    let ginkgo_bin = ensure_ginkgo(&upstream_src_dir)?;
+
+    // Build test command
+    crate::log_info!("Running upstream e2e tests...");
+
+    let skip_pattern = generate_upstream_skip_pattern();
+
+    let mut args = vec!["--skip", &skip_pattern];
+
+    // Add verbosity
+    args.push("-v");
+
+    // Add focus if provided
+    let focus_arg;
+    if let Some(ref pattern) = focus {
+        crate::log_info!("Running tests with focus: {}", pattern);
+        args.push("--focus");
+        focus_arg = pattern.clone();
+        args.push(&focus_arg);
+    }
+
+    // Add label filter if provided
+    let label_filter_arg;
+    if let Some(ref filter) = label_filter {
+        crate::log_info!("Running tests with label filter: {}", filter);
+        label_filter_arg = format!("--label-filter={}", filter);
+        args.push(&label_filter_arg);
+    }
+
+    // Add output format
+    args.push("--junit-report=junit.xml");
+    args.push("--json-report=e2e.json");
+
+    // Add test path
+    let test_path = format!("./test/e2e/{}/...", target);
+    args.push(&test_path);
+
+    // Set environment variables
+    let mut cmd = Command::new(&ginkgo_bin);
+    cmd.args(&args)
+        .current_dir(&upstream_src_dir)
+        .env("KUEUE_NAMESPACE", "openshift-kueue-operator")
+        .env("E2E_KIND_VERSION", ""); // Empty for OCP tests
+
+    if let Some(ref kc) = kubeconfig {
+        cmd.env("KUBECONFIG", kc);
+    }
+
+    let status = cmd.status().context("Failed to run upstream tests")?;
+
+    if !status.success() {
+        return Err(anyhow::anyhow!("Upstream e2e tests failed"));
+    }
+
+    crate::log_info!("");
+    crate::log_info!("==========================================");
+    crate::log_info!("Upstream e2e tests passed successfully!");
+    crate::log_info!("==========================================");
+    crate::log_info!("");
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

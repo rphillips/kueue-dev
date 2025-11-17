@@ -40,17 +40,19 @@ pub fn deploy_kind(options: DeployKindOptions) -> Result<()> {
         project_root.join(&options.images_file)
     };
 
-    crate::log_info!("Using images from: {}", images_path.display());
+    // Always display images configuration (critical deployment info)
+    eprintln!();
+    eprintln!("Using images from: {}", images_path.display());
+    eprintln!();
 
     let image_config = ImageConfig::load(&images_path)?;
 
     // Display images that will be used
-    crate::log_info!("");
-    crate::log_info!("Images to be used:");
-    crate::log_info!("  Operator:     {}", image_config.operator()?);
-    crate::log_info!("  Operand:      {}", image_config.operand()?);
-    crate::log_info!("  Must-gather:  {}", image_config.must_gather()?);
-    crate::log_info!("");
+    eprintln!("Images to be used:");
+    eprintln!("  Operator:     {}", image_config.operator()?);
+    eprintln!("  Operand:      {}", image_config.operand()?);
+    eprintln!("  Must-gather:  {}", image_config.must_gather()?);
+    eprintln!();
 
     // Check if cluster exists
     let cluster = kind::KindCluster::new(&options.cluster_name, kind::CniProvider::Calico);
