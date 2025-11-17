@@ -6,6 +6,8 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use crate::config::images::ImageConfig;
+use crate::config::kueue::{Framework, KueueConfig};
+use crate::config::settings::Settings;
 use crate::install::{calico, cert_manager, jobset, leaderworkerset, operator};
 use crate::k8s::{images, kind, nodes};
 use crate::utils::ContainerRuntime;
@@ -13,6 +15,17 @@ use crate::utils::ContainerRuntime;
 const CERT_MANAGER_VERSION: &str = "v1.13.3";
 const JOBSET_VERSION: &str = "v0.10.1";
 const LEADERWORKERSET_VERSION: &str = "v0.7.0";
+
+/// Options for running tests on kind cluster
+pub struct TestKindOptions {
+    pub cluster_name: String,
+    pub focus: Option<String>,
+    pub label_filter: Option<String>,
+    pub images_file: String,
+    pub skip_kueue_cr: bool,
+    pub kueue_frameworks: Option<String>,
+    pub kueue_namespace: Option<String>,
+}
 
 /// Test skip patterns from test.sh
 const TEST_SKIPS: &[&str] = &[
@@ -37,7 +50,7 @@ pub fn generate_skip_pattern() -> String {
 }
 
 /// Run e2e tests on existing cluster
-pub fn run_tests(focus: Option<String>, kubeconfig: Option<PathBuf>) -> Result<()> {
+pub fn run_tests(focus: Option<String>, label_filter: Option<String>, kubeconfig: Option<PathBuf>) -> Result<()> {
     let project_root = get_project_root()?;
 
     // Determine kubeconfig
@@ -61,13 +74,13 @@ pub fn run_tests(focus: Option<String>, kubeconfig: Option<PathBuf>) -> Result<(
     let ginkgo_bin = ensure_ginkgo(&project_root)?;
 
     // Run tests
-    execute_ginkgo_tests(&ginkgo_bin, &project_root, focus, false)?;
+    execute_ginkgo_tests(&ginkgo_bin, &project_root, focus, label_filter)?;
 
     Ok(())
 }
 
 /// Run tests with retry loop
-pub fn run_tests_with_retry(focus: Option<String>, kubeconfig: Option<PathBuf>) -> Result<()> {
+pub fn run_tests_with_retry(focus: Option<String>, label_filter: Option<String>, kubeconfig: Option<PathBuf>) -> Result<()> {
     let project_root = get_project_root()?;
 
     // Determine kubeconfig
@@ -97,7 +110,7 @@ pub fn run_tests_with_retry(focus: Option<String>, kubeconfig: Option<PathBuf>) 
 
     // Retry loop
     loop {
-        match execute_ginkgo_tests(&ginkgo_bin, &project_root, focus.clone(), false) {
+        match execute_ginkgo_tests(&ginkgo_bin, &project_root, focus.clone(), label_filter.clone()) {
             Ok(_) => {
                 crate::log_info!("");
                 crate::log_info!("==========================================");
@@ -122,18 +135,14 @@ pub fn run_tests_with_retry(focus: Option<String>, kubeconfig: Option<PathBuf>) 
 }
 
 /// Create kind cluster and run tests
-pub fn run_tests_kind(
-    cluster_name: String,
-    focus: Option<String>,
-    images_file: String,
-) -> Result<()> {
+pub fn run_tests_kind(options: TestKindOptions) -> Result<()> {
     crate::log_info!("Creating kind cluster and running e2e tests...");
 
     let project_root = get_project_root()?;
 
     // Parse CNI provider (always use Calico for tests)
     let cni_provider = kind::CniProvider::Calico;
-    let cluster = kind::KindCluster::new(&cluster_name, cni_provider);
+    let cluster = kind::KindCluster::new(&options.cluster_name, cni_provider);
 
     // Create the cluster
     let kubeconfig_path = cluster.create(&project_root)?;
@@ -148,10 +157,10 @@ pub fn run_tests_kind(
     nodes::label_worker_nodes(Some(&kubeconfig_path))?;
 
     // Load image configuration
-    let images_path = if images_file.starts_with('/') {
-        PathBuf::from(images_file)
+    let images_path = if options.images_file.starts_with('/') {
+        PathBuf::from(&options.images_file)
     } else {
-        project_root.join(&images_file)
+        project_root.join(&options.images_file)
     };
 
     let image_config = ImageConfig::load(&images_path)?;
@@ -160,7 +169,7 @@ pub fn run_tests_kind(
     let runtime = ContainerRuntime::detect()?;
 
     // Load images into kind cluster
-    images::load_images_to_kind(&cluster_name, &image_config, &runtime, true)?;
+    images::load_images_to_kind(&options.cluster_name, &image_config, &runtime, true)?;
 
     // Install cert-manager
     cert_manager::install(CERT_MANAGER_VERSION, Some(&kubeconfig_path))?;
@@ -174,8 +183,26 @@ pub fn run_tests_kind(
     // Install CRDs
     operator::install_crds(&project_root, Some(&kubeconfig_path))?;
 
-    // Install operator
-    operator::install_operator(&project_root, &image_config, Some(&kubeconfig_path))?;
+    // Build Kueue config if not skipping
+    let kueue_config = if options.skip_kueue_cr {
+        crate::log_info!("Skipping Kueue CR creation (--skip-kueue-cr flag provided)");
+        None
+    } else {
+        let settings = Settings::load();
+        Some(build_kueue_config_from_settings(
+            &settings,
+            options.kueue_frameworks.as_deref(),
+            options.kueue_namespace.as_deref(),
+        )?)
+    };
+
+    // Install operator with optional Kueue CR
+    operator::install_operator_with_config(
+        &project_root,
+        &image_config,
+        kueue_config.as_ref(),
+        Some(&kubeconfig_path),
+    )?;
 
     crate::log_info!("");
     crate::log_info!("==========================================");
@@ -184,7 +211,7 @@ pub fn run_tests_kind(
     crate::log_info!("");
 
     // Run tests with retry
-    run_tests_with_retry(focus, Some(kubeconfig_path))?;
+    run_tests_with_retry(options.focus, options.label_filter, Some(kubeconfig_path))?;
 
     Ok(())
 }
@@ -235,15 +262,15 @@ fn execute_ginkgo_tests(
     ginkgo_bin: &Path,
     project_root: &Path,
     focus: Option<String>,
-    verbose: bool,
+    label_filter: Option<String>,
 ) -> Result<()> {
     crate::log_info!("Running e2e tests...");
 
-    let mut args = vec!["--label-filter=!disruptive"];
+    // Use provided label filter or default to !disruptive
+    let label_filter_str = label_filter.as_deref().unwrap_or("!disruptive");
+    let label_filter_arg = format!("--label-filter={}", label_filter_str);
 
-    if verbose {
-        args.push("-v");
-    }
+    let mut args = vec![label_filter_arg.as_str(), "-v"];
 
     // Generate skip pattern
     let skip_pattern = generate_skip_pattern();
@@ -291,6 +318,53 @@ fn get_project_root() -> Result<PathBuf> {
 
     // Otherwise use current directory
     Ok(current_dir)
+}
+
+/// Build KueueConfig from settings
+fn build_kueue_config_from_settings(
+    settings: &Settings,
+    frameworks_override: Option<&str>,
+    namespace_override: Option<&str>,
+) -> Result<KueueConfig> {
+    let namespace = namespace_override.unwrap_or(&settings.kueue.namespace);
+
+    let mut builder = KueueConfig::builder()
+        .name(&settings.kueue.name)
+        .namespace(namespace);
+
+    // Use command-line override if provided, otherwise use settings
+    let framework_strings: Vec<String> = if let Some(override_str) = frameworks_override {
+        override_str
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .collect()
+    } else {
+        settings.kueue.frameworks.clone()
+    };
+
+    // Parse framework strings into Framework enum
+    let mut frameworks = Vec::new();
+    for fw_str in &framework_strings {
+        let framework = match fw_str.as_str() {
+            "BatchJob" => Framework::BatchJob,
+            "Pod" => Framework::Pod,
+            "Deployment" => Framework::Deployment,
+            "StatefulSet" => Framework::StatefulSet,
+            "JobSet" => Framework::JobSet,
+            "LeaderWorkerSet" => Framework::LeaderWorkerSet,
+            _ => {
+                crate::log_warn!("Unknown framework: {}, skipping", fw_str);
+                continue;
+            }
+        };
+        frameworks.push(framework);
+    }
+
+    if !frameworks.is_empty() {
+        builder = builder.frameworks(frameworks);
+    }
+
+    builder.build()
 }
 
 #[cfg(test)]

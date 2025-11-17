@@ -16,6 +16,9 @@ pub struct Settings {
 
     #[serde(default)]
     pub behavior: Behavior,
+
+    #[serde(default)]
+    pub kueue: KueueSettings,
 }
 
 /// Default values for common operations
@@ -54,6 +57,19 @@ pub struct Behavior {
     pub show_progress: bool,
 }
 
+/// Kueue CR configuration settings
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct KueueSettings {
+    #[serde(default = "default_kueue_name")]
+    pub name: String,
+
+    #[serde(default = "default_kueue_namespace")]
+    pub namespace: String,
+
+    #[serde(default = "default_kueue_frameworks")]
+    pub frameworks: Vec<String>,
+}
+
 // Default value functions
 fn default_cluster_name() -> String {
     "kueue-test".to_string()
@@ -73,6 +89,25 @@ fn default_true() -> bool {
 
 fn default_theme() -> String {
     "default".to_string()
+}
+
+fn default_kueue_name() -> String {
+    "cluster".to_string()
+}
+
+fn default_kueue_namespace() -> String {
+    "openshift-kueue-operator".to_string()
+}
+
+fn default_kueue_frameworks() -> Vec<String> {
+    vec![
+        "BatchJob".to_string(),
+        "Pod".to_string(),
+        "Deployment".to_string(),
+        "StatefulSet".to_string(),
+        "JobSet".to_string(),
+        "LeaderWorkerSet".to_string(),
+    ]
 }
 
 impl Default for Defaults {
@@ -100,6 +135,16 @@ impl Default for Behavior {
             confirm_destructive: default_true(),
             parallel_operations: default_true(),
             show_progress: default_true(),
+        }
+    }
+}
+
+impl Default for KueueSettings {
+    fn default() -> Self {
+        Self {
+            name: default_kueue_name(),
+            namespace: default_kueue_namespace(),
+            frameworks: default_kueue_frameworks(),
         }
     }
 }
@@ -183,6 +228,14 @@ theme = "default"  # Options: default, dark, light, none
 confirm_destructive = true
 parallel_operations = true
 show_progress = true
+
+[kueue]
+# Kueue CR name - should always be "cluster"
+name = "cluster"
+# Kueue CR namespace - should always be "openshift-kueue-operator"
+namespace = "openshift-kueue-operator"
+# Frameworks to enable
+frameworks = ["BatchJob", "Pod", "Deployment", "StatefulSet", "JobSet", "LeaderWorkerSet"]
 "#
                 .to_string()
             }

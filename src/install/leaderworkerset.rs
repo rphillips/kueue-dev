@@ -29,7 +29,8 @@ pub fn install(version: &str, kubeconfig: Option<&Path>) -> Result<()> {
         .text()
         .context("Failed to read LeaderWorkerSet manifest")?;
 
-    kubectl::apply_yaml(&lws_yaml, kubeconfig)
+    // Use server-side apply to avoid annotation size limits for large CRDs
+    kubectl::apply_yaml_server_side(&lws_yaml, kubeconfig)
         .context("Failed to apply LeaderWorkerSet manifest")?;
 
     crate::log_info!("Waiting for LeaderWorkerSet controller to be ready...");

@@ -1,6 +1,7 @@
 //! Kueue operator installation
 
 use crate::config::images::ImageConfig;
+use crate::config::kueue::KueueConfig;
 use crate::k8s::kubectl;
 use anyhow::{Context, Result};
 use std::path::Path;
@@ -30,6 +31,16 @@ pub fn install_crds(project_root: &Path, kubeconfig: Option<&Path>) -> Result<()
 pub fn install_operator(
     project_root: &Path,
     image_config: &ImageConfig,
+    kubeconfig: Option<&Path>,
+) -> Result<()> {
+    install_operator_with_config(project_root, image_config, None, kubeconfig)
+}
+
+/// Install Kueue operator with optional Kueue CR configuration
+pub fn install_operator_with_config(
+    project_root: &Path,
+    image_config: &ImageConfig,
+    kueue_config: Option<&KueueConfig>,
     kubeconfig: Option<&Path>,
 ) -> Result<()> {
     crate::log_info!("Installing kueue-operator...");
@@ -73,6 +84,24 @@ pub fn install_operator(
     .context("Operator deployment not ready")?;
 
     crate::log_info!("Operator installed successfully");
+
+    // Create Kueue CR if config provided
+    if let Some(config) = kueue_config {
+        create_kueue_cr(config, kubeconfig)?;
+    }
+
+    Ok(())
+}
+
+/// Create Kueue CR from configuration
+pub fn create_kueue_cr(config: &KueueConfig, kubeconfig: Option<&Path>) -> Result<()> {
+    crate::log_info!("Creating Kueue CR: {}/{}", config.namespace, config.name);
+
+    let yaml = config.to_yaml();
+
+    kubectl::apply_yaml(&yaml, kubeconfig).context("Failed to create Kueue CR")?;
+
+    crate::log_info!("Kueue CR created successfully");
     Ok(())
 }
 

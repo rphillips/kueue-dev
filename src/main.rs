@@ -129,6 +129,19 @@ enum DeployCommands {
         /// Skip tests after deployment
         #[arg(long)]
         skip_tests: bool,
+
+        /// Skip creating Kueue CR (only deploy operator)
+        #[arg(long)]
+        skip_kueue_cr: bool,
+
+        /// Kueue frameworks to enable (comma-separated)
+        /// Valid values: BatchJob, Pod, Deployment, StatefulSet, JobSet, LeaderWorkerSet
+        #[arg(long)]
+        kueue_frameworks: Option<String>,
+
+        /// Kueue CR namespace (default: openshift-kueue-operator)
+        #[arg(long)]
+        kueue_namespace: Option<String>,
     },
 
     /// Deploy via OLM bundle
@@ -162,6 +175,10 @@ enum TestCommands {
         #[arg(short, long)]
         focus: Option<String>,
 
+        /// Label filter for tests (e.g., "!disruptive", "network-policy")
+        #[arg(short = 'l', long)]
+        label_filter: Option<String>,
+
         /// Path to kubeconfig
         #[arg(short, long, env = "KUBECONFIG")]
         kubeconfig: Option<String>,
@@ -177,9 +194,26 @@ enum TestCommands {
         #[arg(short, long)]
         focus: Option<String>,
 
+        /// Label filter for tests (e.g., "!disruptive", "network-policy")
+        #[arg(short = 'l', long)]
+        label_filter: Option<String>,
+
         /// Path to related images JSON file
         #[arg(long, default_value = "related_images.rphillips.json")]
         images: String,
+
+        /// Skip creating Kueue CR (only deploy operator)
+        #[arg(long)]
+        skip_kueue_cr: bool,
+
+        /// Kueue frameworks to enable (comma-separated)
+        /// Valid values: BatchJob, Pod, Deployment, StatefulSet, JobSet, LeaderWorkerSet
+        #[arg(long)]
+        kueue_frameworks: Option<String>,
+
+        /// Kueue CR namespace (default: openshift-kueue-operator)
+        #[arg(long)]
+        kueue_namespace: Option<String>,
     },
 
     /// Run tests on OpenShift cluster
@@ -261,7 +295,20 @@ fn handle_deploy_command(command: DeployCommands) -> Result<()> {
             name,
             images,
             skip_tests,
-        } => kueue_dev::commands::deploy::deploy_kind(name, images, skip_tests),
+            skip_kueue_cr,
+            kueue_frameworks,
+            kueue_namespace,
+        } => {
+            use kueue_dev::commands::deploy::DeployKindOptions;
+            kueue_dev::commands::deploy::deploy_kind(DeployKindOptions {
+                cluster_name: name,
+                images_file: images,
+                skip_tests,
+                skip_kueue_cr,
+                kueue_frameworks,
+                kueue_namespace,
+            })
+        }
         DeployCommands::Olm { bundle, name } => {
             use kueue_dev::install::olm;
             use std::env;
@@ -308,19 +355,34 @@ fn handle_test_command(command: TestCommands) -> Result<()> {
     use std::path::PathBuf;
 
     match command {
-        TestCommands::Run { focus, kubeconfig } => {
+        TestCommands::Run { focus, label_filter, kubeconfig } => {
             let kc = kubeconfig.map(PathBuf::from);
-            kueue_dev::commands::test::run_tests_with_retry(focus, kc)
+            kueue_dev::commands::test::run_tests_with_retry(focus, label_filter, kc)
         }
         TestCommands::Kind {
             name,
             focus,
+            label_filter,
             images,
-        } => kueue_dev::commands::test::run_tests_kind(name, focus, images),
+            skip_kueue_cr,
+            kueue_frameworks,
+            kueue_namespace,
+        } => {
+            use kueue_dev::commands::test::TestKindOptions;
+            kueue_dev::commands::test::run_tests_kind(TestKindOptions {
+                cluster_name: name,
+                focus,
+                label_filter,
+                images_file: images,
+                skip_kueue_cr,
+                kueue_frameworks,
+                kueue_namespace,
+            })
+        }
         TestCommands::Openshift { focus } => {
             // For OpenShift, we expect the user to be logged in with oc
             // The tests will use the current context
-            kueue_dev::commands::test::run_tests_with_retry(focus, None)
+            kueue_dev::commands::test::run_tests_with_retry(focus, None, None)
         }
     }
 }
@@ -366,14 +428,13 @@ fn handle_check_command(kind: bool, openshift: bool, olm: bool) -> Result<()> {
 
     // Create owned prerequisite objects
     let kubectl = CommonPrereqs::kubectl();
-    let jq = CommonPrereqs::jq();
     let kind_prereq = CommonPrereqs::kind();
     let go = CommonPrereqs::go();
     let oc = CommonPrereqs::oc();
     let operator_sdk = CommonPrereqs::operator_sdk();
 
     // Build vector of references
-    let mut prereqs: Vec<&dyn Prerequisite> = vec![&kubectl, &jq];
+    let mut prereqs: Vec<&dyn Prerequisite> = vec![&kubectl];
 
     if kind {
         prereqs.push(&kind_prereq);

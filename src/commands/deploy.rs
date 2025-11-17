@@ -6,6 +6,8 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 use crate::config::images::ImageConfig;
+use crate::config::kueue::{Framework, KueueConfig};
+use crate::config::settings::Settings;
 use crate::install::{calico, cert_manager, jobset, leaderworkerset, operator};
 use crate::k8s::{images, kind, nodes};
 use crate::utils::ContainerRuntime;
@@ -14,18 +16,28 @@ const CERT_MANAGER_VERSION: &str = "v1.13.3";
 const JOBSET_VERSION: &str = "v0.10.1";
 const LEADERWORKERSET_VERSION: &str = "v0.7.0";
 
+/// Options for deploying to kind cluster
+pub struct DeployKindOptions {
+    pub cluster_name: String,
+    pub images_file: String,
+    pub skip_tests: bool,
+    pub skip_kueue_cr: bool,
+    pub kueue_frameworks: Option<String>,
+    pub kueue_namespace: Option<String>,
+}
+
 /// Handle deploy kind command
-pub fn deploy_kind(cluster_name: String, images_file: String, skip_tests: bool) -> Result<()> {
-    crate::log_info!("Deploying kueue-operator to kind cluster: {}", cluster_name);
+pub fn deploy_kind(options: DeployKindOptions) -> Result<()> {
+    crate::log_info!("Deploying kueue-operator to kind cluster: {}", options.cluster_name);
 
     // Get project root
     let project_root = get_project_root()?;
 
     // Load image configuration
-    let images_path = if images_file.starts_with('/') {
-        PathBuf::from(images_file)
+    let images_path = if options.images_file.starts_with('/') {
+        PathBuf::from(&options.images_file)
     } else {
-        project_root.join(&images_file)
+        project_root.join(&options.images_file)
     };
 
     crate::log_info!("Using images from: {}", images_path.display());
@@ -41,12 +53,12 @@ pub fn deploy_kind(cluster_name: String, images_file: String, skip_tests: bool) 
     crate::log_info!("");
 
     // Check if cluster exists
-    let cluster = kind::KindCluster::new(&cluster_name, kind::CniProvider::Calico);
+    let cluster = kind::KindCluster::new(&options.cluster_name, kind::CniProvider::Calico);
     if !cluster.exists()? {
         return Err(anyhow::anyhow!(
             "Cluster '{}' does not exist. Create it first with: kueue-dev cluster create --name {}",
-            cluster_name,
-            cluster_name
+            options.cluster_name,
+            options.cluster_name
         ));
     }
 
@@ -65,7 +77,7 @@ pub fn deploy_kind(cluster_name: String, images_file: String, skip_tests: bool) 
     let runtime = ContainerRuntime::detect()?;
 
     // Load images into kind cluster
-    images::load_images_to_kind(&cluster_name, &image_config, &runtime, true)?;
+    images::load_images_to_kind(&options.cluster_name, &image_config, &runtime, true)?;
 
     // Install cert-manager
     cert_manager::install(CERT_MANAGER_VERSION, Some(&kubeconfig_path))?;
@@ -79,15 +91,33 @@ pub fn deploy_kind(cluster_name: String, images_file: String, skip_tests: bool) 
     // Install CRDs
     operator::install_crds(&project_root, Some(&kubeconfig_path))?;
 
-    // Install operator
-    operator::install_operator(&project_root, &image_config, Some(&kubeconfig_path))?;
+    // Build Kueue config if not skipping
+    let kueue_config = if options.skip_kueue_cr {
+        crate::log_info!("Skipping Kueue CR creation (--skip-kueue-cr flag provided)");
+        None
+    } else {
+        let settings = Settings::load();
+        Some(build_kueue_config_from_settings(
+            &settings,
+            options.kueue_frameworks.as_deref(),
+            options.kueue_namespace.as_deref(),
+        )?)
+    };
+
+    // Install operator with optional Kueue CR
+    operator::install_operator_with_config(
+        &project_root,
+        &image_config,
+        kueue_config.as_ref(),
+        Some(&kubeconfig_path),
+    )?;
 
     crate::log_info!("");
     crate::log_info!("==========================================");
     crate::log_info!("Deployment completed successfully!");
     crate::log_info!("==========================================");
     crate::log_info!("");
-    crate::log_info!("Cluster name: {}", cluster_name);
+    crate::log_info!("Cluster name: {}", options.cluster_name);
     crate::log_info!("Kubeconfig: {}", kubeconfig_path.display());
     crate::log_info!("");
     crate::log_info!("To view operator logs:");
@@ -96,7 +126,7 @@ pub fn deploy_kind(cluster_name: String, images_file: String, skip_tests: bool) 
     );
     crate::log_info!("");
 
-    if skip_tests {
+    if options.skip_tests {
         crate::log_info!("Skipping e2e tests (--skip-tests flag provided)");
     } else {
         crate::log_info!("Note: Test execution will be implemented in Phase 4");
@@ -136,7 +166,14 @@ pub fn deploy_kind_full(
     nodes::label_worker_nodes(Some(&kubeconfig_path))?;
 
     // Now deploy the operator
-    deploy_kind(cluster_name, images_file, skip_tests)?;
+    deploy_kind(DeployKindOptions {
+        cluster_name,
+        images_file,
+        skip_tests,
+        skip_kueue_cr: false,
+        kueue_frameworks: None,
+        kueue_namespace: None,
+    })?;
 
     Ok(())
 }
@@ -155,6 +192,53 @@ fn get_project_root() -> Result<PathBuf> {
 
     // Otherwise use current directory
     Ok(current_dir)
+}
+
+/// Build KueueConfig from settings
+fn build_kueue_config_from_settings(
+    settings: &Settings,
+    frameworks_override: Option<&str>,
+    namespace_override: Option<&str>,
+) -> Result<KueueConfig> {
+    let namespace = namespace_override.unwrap_or(&settings.kueue.namespace);
+
+    let mut builder = KueueConfig::builder()
+        .name(&settings.kueue.name)
+        .namespace(namespace);
+
+    // Use command-line override if provided, otherwise use settings
+    let framework_strings: Vec<String> = if let Some(override_str) = frameworks_override {
+        override_str
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .collect()
+    } else {
+        settings.kueue.frameworks.clone()
+    };
+
+    // Parse framework strings into Framework enum
+    let mut frameworks = Vec::new();
+    for fw_str in &framework_strings {
+        let framework = match fw_str.as_str() {
+            "BatchJob" => Framework::BatchJob,
+            "Pod" => Framework::Pod,
+            "Deployment" => Framework::Deployment,
+            "StatefulSet" => Framework::StatefulSet,
+            "JobSet" => Framework::JobSet,
+            "LeaderWorkerSet" => Framework::LeaderWorkerSet,
+            _ => {
+                crate::log_warn!("Unknown framework: {}, skipping", fw_str);
+                continue;
+            }
+        };
+        frameworks.push(framework);
+    }
+
+    if !frameworks.is_empty() {
+        builder = builder.frameworks(frameworks);
+    }
+
+    builder.build()
 }
 
 #[cfg(test)]

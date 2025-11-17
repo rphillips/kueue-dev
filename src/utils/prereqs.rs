@@ -77,14 +77,6 @@ impl CommonPrereqs {
         )
     }
 
-    /// Get jq prerequisite
-    pub fn jq() -> CommandPrereq {
-        CommandPrereq::new(
-            "jq",
-            "Install from: https://stedolan.github.io/jq/download/",
-        )
-    }
-
     /// Get go prerequisite
     pub fn go() -> CommandPrereq {
         CommandPrereq::new("go", "Install from: https://golang.org/doc/install")

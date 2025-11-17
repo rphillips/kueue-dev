@@ -80,6 +80,39 @@ pub fn apply_yaml(yaml: &str, kubeconfig: Option<&Path>) -> Result<()> {
     Ok(())
 }
 
+/// Apply a YAML manifest using server-side apply (for large CRDs)
+pub fn apply_yaml_server_side(yaml: &str, kubeconfig: Option<&Path>) -> Result<()> {
+    let mut cmd = Command::new("kubectl");
+
+    if let Some(kc) = kubeconfig {
+        cmd.env("KUBECONFIG", kc);
+    }
+
+    cmd.args(["apply", "--server-side", "-f", "-"]);
+
+    let mut child = cmd
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::inherit())
+        .stderr(std::process::Stdio::inherit())
+        .spawn()
+        .context("Failed to spawn kubectl apply --server-side")?;
+
+    if let Some(mut stdin) = child.stdin.take() {
+        use std::io::Write;
+        stdin
+            .write_all(yaml.as_bytes())
+            .context("Failed to write YAML to kubectl")?;
+    }
+
+    let status = child.wait().context("Failed to wait for kubectl apply --server-side")?;
+
+    if !status.success() {
+        return Err(anyhow!("kubectl apply --server-side failed"));
+    }
+
+    Ok(())
+}
+
 /// Create a resource from YAML manifest
 pub fn create_yaml(yaml: &str, kubeconfig: Option<&Path>) -> Result<()> {
     let mut cmd = Command::new("kubectl");
