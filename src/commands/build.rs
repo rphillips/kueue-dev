@@ -311,28 +311,30 @@ fn build_image(
     tag: &str,
 ) -> Result<()> {
     use std::process::Stdio;
+    use std::io::BufReader;
 
     let runtime_cmd = runtime.command();
-
-    // Check if debug logging is enabled by checking RUST_LOG
-    let show_output = std::env::var("RUST_LOG")
-        .map(|level| level.contains("debug") || level.contains("trace"))
-        .unwrap_or(false);
 
     let mut cmd = Command::new(runtime_cmd);
     cmd.args(["build", "-f"])
         .arg(dockerfile)
         .args(["-t", tag])
-        .arg(context);
+        .arg(context)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
 
-    // Suppress stdout unless debug logging is enabled
-    if !show_output {
-        cmd.stdout(Stdio::null());
+    let mut child = cmd
+        .spawn()
+        .with_context(|| format!("Failed to execute {} build command", runtime_cmd))?;
+
+    // Stream output with rolling 5-line buffer
+    if let Some(stdout) = child.stdout.take() {
+        stream_output_with_rolling_buffer(BufReader::new(stdout), 5);
     }
 
-    let output = cmd
-        .output()
-        .with_context(|| format!("Failed to execute {} build command", runtime_cmd))?;
+    let output = child
+        .wait_with_output()
+        .with_context(|| format!("Failed to wait for {} build command", runtime_cmd))?;
 
     if !output.status.success() {
         // On error, always show stderr
@@ -350,25 +352,27 @@ fn build_image(
 /// Push a container image
 fn push_image(runtime: &ContainerRuntime, tag: &str) -> Result<()> {
     use std::process::Stdio;
+    use std::io::BufReader;
 
     let runtime_cmd = runtime.command();
 
-    // Check if debug logging is enabled
-    let show_output = std::env::var("RUST_LOG")
-        .map(|level| level.contains("debug") || level.contains("trace"))
-        .unwrap_or(false);
-
     let mut cmd = Command::new(runtime_cmd);
-    cmd.args(["push", tag]);
+    cmd.args(["push", tag])
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
 
-    // Suppress stdout unless debug logging is enabled
-    if !show_output {
-        cmd.stdout(Stdio::null());
+    let mut child = cmd
+        .spawn()
+        .with_context(|| format!("Failed to execute {} push command", runtime_cmd))?;
+
+    // Stream output with rolling 5-line buffer
+    if let Some(stdout) = child.stdout.take() {
+        stream_output_with_rolling_buffer(BufReader::new(stdout), 5);
     }
 
-    let output = cmd
-        .output()
-        .with_context(|| format!("Failed to execute {} push command", runtime_cmd))?;
+    let output = child
+        .wait_with_output()
+        .with_context(|| format!("Failed to wait for {} push command", runtime_cmd))?;
 
     if !output.status.success() {
         // On error, always show stderr
@@ -381,6 +385,47 @@ fn push_image(runtime: &ContainerRuntime, tag: &str) -> Result<()> {
     }
 
     Ok(())
+}
+
+/// Stream output with a rolling buffer of N lines
+/// This continuously displays the last N lines of output, updating as new lines arrive
+fn stream_output_with_rolling_buffer<R: std::io::BufRead>(reader: R, buffer_size: usize) {
+    use std::collections::VecDeque;
+
+    let mut buffer: VecDeque<String> = VecDeque::with_capacity(buffer_size);
+    let mut lines_displayed = 0;
+
+    for line in reader.lines() {
+        if let Ok(line) = line {
+            // Add new line to buffer
+            if buffer.len() >= buffer_size {
+                buffer.pop_front();
+            }
+            buffer.push_back(line);
+
+            // Clear previous output
+            if lines_displayed > 0 {
+                // Move cursor up and clear lines
+                for _ in 0..lines_displayed {
+                    print!("\x1b[1A\x1b[2K"); // Move up one line and clear it
+                }
+            }
+
+            // Display current buffer
+            lines_displayed = buffer.len();
+            for line in &buffer {
+                println!("{}", line);
+            }
+
+            // Flush to ensure immediate display
+            let _ = std::io::stdout().flush();
+        }
+    }
+
+    // Final newline after streaming is complete
+    if lines_displayed > 0 {
+        println!();
+    }
 }
 
 /// Get project root directory

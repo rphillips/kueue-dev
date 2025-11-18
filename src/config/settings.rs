@@ -93,7 +93,7 @@ fn default_cni_provider() -> String {
 }
 
 fn default_images_file() -> String {
-    "related_images.rphillips.json".to_string()
+    "related_images.json".to_string()
 }
 
 fn default_true() -> bool {
@@ -287,7 +287,7 @@ impl Settings {
 [defaults]
 cluster_name = "kueue-test"
 cni_provider = "calico"
-images_file = "related_images.rphillips.json"
+images_file = "related_images.json"
 
 [colors]
 enabled = true

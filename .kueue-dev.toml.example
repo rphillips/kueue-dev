@@ -14,7 +14,7 @@ cluster_name = "kueue-test"
 cni_provider = "default"
 
 # Default images configuration file
-images_file = "related_images.rphillips.json"
+images_file = "related_images.json"
 
 [colors]
 # Enable/disable colored output

@@ -124,7 +124,7 @@ enum DeployCommands {
         name: String,
 
         /// Path to related images JSON file
-        #[arg(long = "related-images", default_value = "related_images.rphillips.json")]
+        #[arg(long = "related-images", default_value = "related_images.json")]
         images: String,
 
         /// Skip tests after deployment
@@ -159,7 +159,7 @@ enum DeployCommands {
     /// Deploy to OpenShift cluster
     Openshift {
         /// Path to related images JSON file
-        #[arg(long = "related-images", default_value = "related_images.rphillips.json")]
+        #[arg(long = "related-images", default_value = "related_images.json")]
         images: String,
 
         /// Skip tests after deployment
@@ -187,8 +187,8 @@ enum TestCommands {
 
     /// Deploy operator and run tests
     Operator {
-        /// Type of cluster (kind or openshift)
-        #[arg(short = 't', long, value_parser = ["kind", "openshift"])]
+        /// Type of cluster (kind, openshift, or kubeconfig)
+        #[arg(short = 't', long, value_parser = ["kind", "openshift", "kubeconfig"], default_value = "kubeconfig")]
         r#type: String,
 
         /// Cluster name (kind only)
@@ -203,8 +203,12 @@ enum TestCommands {
         #[arg(short = 'l', long)]
         label_filter: Option<String>,
 
+        /// Path to kubeconfig (kubeconfig type only)
+        #[arg(short = 'k', long, env = "KUBECONFIG")]
+        kubeconfig: Option<String>,
+
         /// Path to related images JSON file (kind only)
-        #[arg(long = "related-images", default_value = "related_images.rphillips.json")]
+        #[arg(long = "related-images", default_value = "related_images.json")]
         images: String,
 
         /// Skip creating Kueue CR (only deploy operator)
@@ -261,7 +265,7 @@ enum ImagesCommands {
     /// List images from config
     List {
         /// Path to related images JSON file
-        #[arg(short, long, default_value = "related_images.rphillips.json")]
+        #[arg(short, long, default_value = "related_images.json")]
         file: String,
     },
 
@@ -272,7 +276,7 @@ enum ImagesCommands {
         name: String,
 
         /// Path to related images JSON file
-        #[arg(long = "related-images", default_value = "related_images.rphillips.json")]
+        #[arg(long = "related-images", default_value = "related_images.json")]
         images: String,
     },
 }
@@ -401,6 +405,7 @@ fn handle_test_command(command: TestCommands) -> Result<()> {
             name,
             focus,
             label_filter,
+            kubeconfig,
             images,
             skip_kueue_cr,
             kueue_frameworks,
@@ -423,6 +428,11 @@ fn handle_test_command(command: TestCommands) -> Result<()> {
                     // For OpenShift, we expect the user to be logged in with oc
                     // The tests will use the current context
                     kueue_dev::commands::test::run_tests_with_retry(focus, label_filter, None)
+                }
+                "kubeconfig" => {
+                    // Use the provided or environment kubeconfig
+                    let kc = kubeconfig.map(PathBuf::from);
+                    kueue_dev::commands::test::run_tests_with_retry(focus, label_filter, kc)
                 }
                 _ => Err(anyhow::anyhow!("Invalid operator type: {}", r#type)),
             }

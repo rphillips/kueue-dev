@@ -2,6 +2,8 @@
 
 Development CLI tool for kueue-operator.
 
+**Documentation:** https://trolocsis.com/kueue-dev/
+
 ## Overview
 
 `kueue-dev` is a Rust-based CLI tool that replaces the shell scripts in the kueue-operator project. It provides a unified interface for managing kind clusters, deploying the operator, and running tests.
@@ -263,6 +265,8 @@ upstream_skip_patterns = ["AppWrapper", "PyTorch", "TrainJob", "Kueuectl", ...]
 ```
 
 ## Documentation
+
+**Online Documentation:** https://trolocsis.com/kueue-dev/
 
 The complete user guide is available as an mdBook:
 
