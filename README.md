@@ -395,10 +395,6 @@ kueue-dev -v <command>
   - ✅ Dry-run mode (--dry-run)
   - ✅ Comprehensive user guide and documentation
 
-## Contributing
-
-See [KUEUE_DEV.md](../KUEUE_DEV.md) for the full implementation plan.
-
 ## License
 
 Apache-2.0
