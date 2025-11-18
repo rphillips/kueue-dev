@@ -1,0 +1,5 @@
+[book]
+authors = ["Ryan Phillips"]
+language = "en"
+src = "src"
+title = "kueue-dev"
