@@ -131,9 +131,12 @@ pub fn run_tests_with_retry(focus: Option<String>, label_filter: Option<String>,
 
 /// Create kind cluster and run tests
 pub fn run_tests_kind(options: TestKindOptions) -> Result<()> {
+    let project_root = get_project_root()?;
+
     crate::log_info!("Creating kind cluster and running e2e tests...");
 
-    let project_root = get_project_root()?;
+    // Load settings
+    let settings = Settings::load();
 
     // Parse CNI provider (always use Calico for tests)
     let cni_provider = kind::CniProvider::Calico;
@@ -183,7 +186,6 @@ pub fn run_tests_kind(options: TestKindOptions) -> Result<()> {
         crate::log_info!("Skipping Kueue CR creation (--skip-kueue-cr flag provided)");
         None
     } else {
-        let settings = Settings::load();
         Some(build_kueue_config_from_settings(
             &settings,
             options.kueue_frameworks.as_deref(),
@@ -493,53 +495,16 @@ fn allow_privileged_access(kubeconfig: Option<&PathBuf>) -> Result<()> {
     Ok(())
 }
 
-/// Run upstream kueue tests
-pub fn test_upstream(
+/// Execute upstream ginkgo tests
+fn execute_upstream_ginkgo_tests(
+    ginkgo_bin: &Path,
+    upstream_src_dir: &Path,
     focus: Option<String>,
     label_filter: Option<String>,
-    kubeconfig: Option<PathBuf>,
-    target: String,
+    skip_patterns: &[String],
+    target: &str,
+    kubeconfig: Option<&PathBuf>,
 ) -> Result<()> {
-    crate::log_info!("Running upstream kueue tests...");
-
-    // Get project root
-    let project_root = get_project_root()?;
-
-    // Get upstream kueue directory
-    let upstream_dir = project_root.join("upstream").join("kueue");
-    if !upstream_dir.exists() {
-        return Err(anyhow::anyhow!(
-            "Upstream kueue directory not found at {}",
-            upstream_dir.display()
-        ));
-    }
-
-    let upstream_src_dir = upstream_dir.join("src");
-    if !upstream_src_dir.exists() {
-        return Err(anyhow::anyhow!(
-            "Upstream kueue src directory not found at {}",
-            upstream_src_dir.display()
-        ));
-    }
-
-    // Apply patches
-    apply_git_patches(&upstream_dir)?;
-
-    // Label worker nodes
-    crate::log_info!("Labeling worker nodes for e2e tests...");
-    nodes::label_worker_nodes(kubeconfig.as_deref())?;
-
-    // Allow privileged access
-    allow_privileged_access(kubeconfig.as_ref())?;
-
-    // Ensure ginkgo is available
-    let ginkgo_bin = ensure_ginkgo(&upstream_src_dir)?;
-
-    // Load settings to get skip patterns
-    let settings = Settings::load();
-    let skip_patterns = &settings.tests.upstream_skip_patterns;
-
-    // Build test command
     crate::log_info!("Running upstream e2e tests...");
 
     let skip_pattern = generate_skip_pattern(skip_patterns);
@@ -578,14 +543,15 @@ pub fn test_upstream(
     let test_path = format!("./test/e2e/{}/...", target);
     args.push(&test_path);
 
-    // Set environment variables
-    let mut cmd = Command::new(&ginkgo_bin);
+    // Run ginkgo
+
+    let mut cmd = Command::new(ginkgo_bin);
     cmd.args(&args)
-        .current_dir(&upstream_src_dir)
+        .current_dir(upstream_src_dir)
         .env("KUEUE_NAMESPACE", "openshift-kueue-operator")
         .env("E2E_KIND_VERSION", ""); // Empty for OCP tests
 
-    if let Some(ref kc) = kubeconfig {
+    if let Some(kc) = kubeconfig {
         cmd.env("KUBECONFIG", kc);
     }
 
@@ -600,6 +566,66 @@ pub fn test_upstream(
     crate::log_info!("Upstream e2e tests passed successfully!");
     crate::log_info!("==========================================");
     crate::log_info!("");
+
+    Ok(())
+}
+
+/// Run upstream kueue tests
+pub fn test_upstream(
+    focus: Option<String>,
+    label_filter: Option<String>,
+    kubeconfig: Option<PathBuf>,
+    target: String,
+) -> Result<()> {
+    crate::log_info!("Running upstream kueue tests...");
+
+    let project_root = get_project_root()?;
+
+    // Get upstream kueue directory
+    let upstream_dir = project_root.join("upstream").join("kueue");
+    let upstream_src_dir = upstream_dir.join("src");
+
+    if !upstream_dir.exists() {
+        return Err(anyhow::anyhow!(
+            "Upstream kueue directory not found at {}",
+            upstream_dir.display()
+        ));
+    }
+
+    if !upstream_src_dir.exists() {
+        return Err(anyhow::anyhow!(
+            "Upstream kueue src directory not found at {}",
+            upstream_src_dir.display()
+        ));
+    }
+
+    // Apply patches
+    apply_git_patches(&upstream_dir)?;
+
+    // Label worker nodes
+    crate::log_info!("Labeling worker nodes for e2e tests...");
+    nodes::label_worker_nodes(kubeconfig.as_deref())?;
+
+    // Allow privileged access
+    allow_privileged_access(kubeconfig.as_ref())?;
+
+    // Ensure ginkgo is available
+    let ginkgo_bin = ensure_ginkgo(&upstream_src_dir)?;
+
+    // Load settings to get skip patterns
+    let settings = Settings::load();
+    let skip_patterns = &settings.tests.upstream_skip_patterns;
+
+    // Run tests
+    execute_upstream_ginkgo_tests(
+        &ginkgo_bin,
+        &upstream_src_dir,
+        focus,
+        label_filter,
+        skip_patterns,
+        &target,
+        kubeconfig.as_ref(),
+    )?;
 
     Ok(())
 }

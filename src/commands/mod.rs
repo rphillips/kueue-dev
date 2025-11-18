@@ -1,5 +1,6 @@
 //! Command implementations for kueue-dev CLI
 
+pub mod build;
 pub mod cleanup;
 pub mod cluster;
 pub mod deploy;

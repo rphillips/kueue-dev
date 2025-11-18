@@ -36,6 +36,7 @@ thiserror = "2.0"
 colored = "2.1"
 indicatif = "0.17"
 dialoguer = "0.11"
+owo-colors = "4.1"
 
 # HTTP client
 reqwest = { version = "0.12", features = ["json", "blocking"] }
@@ -47,6 +48,7 @@ regex = "1.0"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 dirs = "6.0"
+shell-words = "1.1"
 
 [dev-dependencies]
 tokio-test = "0.4"

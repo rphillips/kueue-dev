@@ -17,10 +17,6 @@ struct Cli {
     #[arg(short, long, global = true, action = clap::ArgAction::Count)]
     verbose: u8,
 
-    /// Dry-run mode: show what would be done without making changes
-    #[arg(long, global = true)]
-    dry_run: bool,
-
     #[command(subcommand)]
     command: Commands,
 }
@@ -128,7 +124,7 @@ enum DeployCommands {
         name: String,
 
         /// Path to related images JSON file
-        #[arg(long, default_value = "related_images.rphillips.json")]
+        #[arg(long = "related-images", default_value = "related_images.rphillips.json")]
         images: String,
 
         /// Skip tests after deployment
@@ -163,7 +159,7 @@ enum DeployCommands {
     /// Deploy to OpenShift cluster
     Openshift {
         /// Path to related images JSON file
-        #[arg(long, default_value = "related_images.rphillips.json")]
+        #[arg(long = "related-images", default_value = "related_images.rphillips.json")]
         images: String,
 
         /// Skip tests after deployment
@@ -208,7 +204,7 @@ enum TestCommands {
         label_filter: Option<String>,
 
         /// Path to related images JSON file (kind only)
-        #[arg(long, default_value = "related_images.rphillips.json")]
+        #[arg(long = "related-images", default_value = "related_images.rphillips.json")]
         images: String,
 
         /// Skip creating Kueue CR (only deploy operator)
@@ -247,6 +243,21 @@ enum TestCommands {
 
 #[derive(Subcommand)]
 enum ImagesCommands {
+    /// Build and push container images
+    Build {
+        /// Components to build (operator, operand, must-gather). Defaults to all components if not specified.
+        #[arg(value_delimiter = ',')]
+        components: Vec<String>,
+
+        /// Path to images configuration file (defaults to config file setting)
+        #[arg(short, long = "related-images")]
+        images: Option<String>,
+
+        /// Build components in parallel
+        #[arg(short, long)]
+        parallel: bool,
+    },
+
     /// List images from config
     List {
         /// Path to related images JSON file
@@ -261,7 +272,7 @@ enum ImagesCommands {
         name: String,
 
         /// Path to related images JSON file
-        #[arg(long, default_value = "related_images.rphillips.json")]
+        #[arg(long = "related-images", default_value = "related_images.rphillips.json")]
         images: String,
     },
 }
@@ -289,13 +300,6 @@ fn main() -> Result<()> {
             .with_writer(std::io::stderr))
         .with(EnvFilter::from_default_env())
         .init();
-
-    // Set dry-run mode
-    if cli.dry_run {
-        std::env::set_var("KUEUE_DEV_DRY_RUN", "1");
-        crate::log_info!("🔍 DRY RUN MODE: No changes will be made");
-        println!();
-    }
 
     match cli.command {
         Commands::Cluster { command } => handle_cluster_command(command),
@@ -442,6 +446,9 @@ fn handle_images_command(command: ImagesCommands) -> Result<()> {
     use std::path::PathBuf;
 
     match command {
+        ImagesCommands::Build { components, images, parallel } => {
+            kueue_dev::commands::build::build_and_push(components, images, parallel)
+        }
         ImagesCommands::List { file } => {
             let path = PathBuf::from(&file);
             let config = ImageConfig::load(&path)?;
