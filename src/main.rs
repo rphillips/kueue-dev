@@ -124,8 +124,8 @@ enum DeployCommands {
         name: String,
 
         /// Path to related images JSON file
-        #[arg(long = "related-images", default_value = "related_images.json")]
-        images: String,
+        #[arg(long = "related-images")]
+        images: Option<String>,
 
         /// Skip tests after deployment
         #[arg(long)]
@@ -159,8 +159,8 @@ enum DeployCommands {
     /// Deploy to OpenShift cluster
     Openshift {
         /// Path to related images JSON file
-        #[arg(long = "related-images", default_value = "related_images.json")]
-        images: String,
+        #[arg(long = "related-images")]
+        images: Option<String>,
 
         /// Skip tests after deployment
         #[arg(long)]
@@ -208,8 +208,8 @@ enum TestCommands {
         kubeconfig: Option<String>,
 
         /// Path to related images JSON file (kind only)
-        #[arg(long = "related-images", default_value = "related_images.json")]
-        images: String,
+        #[arg(long = "related-images")]
+        images: Option<String>,
 
         /// Skip creating Kueue CR (only deploy operator)
         #[arg(long)]
@@ -276,8 +276,8 @@ enum ImagesCommands {
         name: String,
 
         /// Path to related images JSON file
-        #[arg(long = "related-images", default_value = "related_images.json")]
-        images: String,
+        #[arg(long = "related-images")]
+        images: Option<String>,
     },
 }
 
@@ -341,9 +341,15 @@ fn handle_deploy_command(command: DeployCommands) -> Result<()> {
             kueue_namespace,
         } => {
             use kueue_dev::commands::deploy::DeployKindOptions;
+            use kueue_dev::config::settings::Settings;
+
+            // Use provided images file or fall back to config file setting
+            let settings = Settings::load();
+            let images_file = images.unwrap_or(settings.defaults.images_file);
+
             kueue_dev::commands::deploy::deploy_kind(DeployKindOptions {
                 cluster_name: name,
-                images_file: images,
+                images_file,
                 skip_tests,
                 skip_kueue_cr,
                 kueue_frameworks,
@@ -387,7 +393,13 @@ fn handle_deploy_command(command: DeployCommands) -> Result<()> {
             Ok(())
         }
         DeployCommands::Openshift { images, skip_tests } => {
-            kueue_dev::commands::openshift::deploy_openshift(images, skip_tests)
+            use kueue_dev::config::settings::Settings;
+
+            // Use provided images file or fall back to config file setting
+            let settings = Settings::load();
+            let images_file = images.unwrap_or(settings.defaults.images_file);
+
+            kueue_dev::commands::openshift::deploy_openshift(images_file, skip_tests)
         }
     }
 }
@@ -411,14 +423,21 @@ fn handle_test_command(command: TestCommands) -> Result<()> {
             kueue_frameworks,
             kueue_namespace,
         } => {
+            use kueue_dev::config::settings::Settings;
+
             match r#type.as_str() {
                 "kind" => {
                     use kueue_dev::commands::test::TestKindOptions;
+
+                    // Use provided images file or fall back to config file setting
+                    let settings = Settings::load();
+                    let images_file = images.unwrap_or(settings.defaults.images_file);
+
                     kueue_dev::commands::test::run_tests_kind(TestKindOptions {
                         cluster_name: name,
                         focus,
                         label_filter,
-                        images_file: images,
+                        images_file,
                         skip_kueue_cr,
                         kueue_frameworks,
                         kueue_namespace,
@@ -471,10 +490,15 @@ fn handle_images_command(command: ImagesCommands) -> Result<()> {
             Ok(())
         }
         ImagesCommands::Load { name, images } => {
+            use kueue_dev::config::settings::Settings;
             use kueue_dev::k8s::images::load_images_to_kind;
             use kueue_dev::utils::ContainerRuntime;
 
-            let path = PathBuf::from(&images);
+            // Use provided images file or fall back to config file setting
+            let settings = Settings::load();
+            let images_file = images.unwrap_or(settings.defaults.images_file);
+
+            let path = PathBuf::from(&images_file);
             let config = ImageConfig::load(&path)?;
             let runtime = ContainerRuntime::detect()?;
 
