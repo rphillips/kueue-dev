@@ -9,7 +9,7 @@ use crate::config::images::ImageConfig;
 use crate::config::kueue::{Framework, KueueConfig};
 use crate::config::settings::Settings;
 use crate::install::{calico, cert_manager, jobset, leaderworkerset, operator};
-use crate::k8s::{images, kind, nodes};
+use crate::k8s::{images, kind, kubectl, nodes};
 use crate::utils::ContainerRuntime;
 
 const CERT_MANAGER_VERSION: &str = "v1.13.3";
@@ -577,6 +577,73 @@ fn execute_upstream_ginkgo_tests(
     Ok(())
 }
 
+/// Check if running on a Kind cluster
+fn is_kind_cluster(kubeconfig: Option<&Path>) -> Result<bool> {
+    // Get the current context and check if it's a kind cluster
+    let output = kubectl::run_kubectl_output(&["config", "current-context"], kubeconfig)?;
+    let context = output.trim();
+    Ok(context.starts_with("kind-"))
+}
+
+/// Scale down operator deployment to 0 replicas
+fn scale_down_operator(kubeconfig: Option<&Path>) -> Result<()> {
+    crate::log_info!("Scaling down operator deployment to 0 replicas...");
+    kubectl::run_kubectl(
+        &[
+            "scale",
+            "deployment/openshift-kueue-operator",
+            "--replicas=0",
+            "-n",
+            "openshift-kueue-operator",
+        ],
+        kubeconfig,
+    )
+    .context("Failed to scale down operator deployment")?;
+
+    // Wait for the deployment to scale down to avoid race conditions
+    crate::log_info!("Waiting for operator pods to terminate...");
+    kubectl::run_kubectl(
+        &[
+            "wait",
+            "--for=delete",
+            "pod",
+            "-l",
+            "name=openshift-kueue-operator",
+            "-n",
+            "openshift-kueue-operator",
+            "--timeout=60s",
+        ],
+        kubeconfig,
+    )
+    .context("Failed to wait for operator pods to terminate")?;
+
+    crate::log_info!("Operator deployment scaled down successfully");
+    Ok(())
+}
+
+/// Delete all NetworkPolicies in the cluster
+fn delete_network_policies(kubeconfig: Option<&Path>) -> Result<()> {
+    crate::log_info!("Deleting NetworkPolicies...");
+
+    // Try to delete NetworkPolicies, but don't fail if there are none
+    match kubectl::run_kubectl(&["delete", "networkpolicies", "--all", "--all-namespaces"], kubeconfig) {
+        Ok(_) => {
+            crate::log_info!("NetworkPolicies deleted successfully");
+            Ok(())
+        }
+        Err(e) => {
+            // Check if the error is because there are no NetworkPolicies
+            let err_msg = e.to_string();
+            if err_msg.contains("No resources found") || err_msg.contains("the server doesn't have a resource type \"networkpolicies\"") {
+                crate::log_info!("No NetworkPolicies found to delete");
+                Ok(())
+            } else {
+                Err(e)
+            }
+        }
+    }
+}
+
 /// Run upstream kueue tests
 pub fn test_upstream(
     focus: Option<String>,
@@ -608,6 +675,17 @@ pub fn test_upstream(
 
     // Apply patches
     apply_git_patches(&upstream_dir)?;
+
+    // Check if running on Kind and perform necessary setup
+    if is_kind_cluster(kubeconfig.as_deref())? {
+        crate::log_info!("Detected Kind cluster - performing setup for upstream tests");
+
+        // Scale down the operator deployment
+        scale_down_operator(kubeconfig.as_deref())?;
+
+        // Delete NetworkPolicies
+        delete_network_policies(kubeconfig.as_deref())?;
+    }
 
     // Label worker nodes
     crate::log_info!("Labeling worker nodes for e2e tests...");
