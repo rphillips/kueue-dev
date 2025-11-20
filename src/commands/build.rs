@@ -1,9 +1,9 @@
 //! Build and push container images
 
 use anyhow::{Context, Result};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use std::io::Write;
 
 use crate::config::images::ImageConfig;
 use crate::config::settings::Settings;
@@ -13,7 +13,11 @@ use crate::utils::ContainerRuntime;
 const VALID_COMPONENTS: &[&str] = &["operator", "operand", "must-gather"];
 
 /// Build and push container images
-pub fn build_and_push(components: Vec<String>, images_file: Option<String>, parallel: bool) -> Result<()> {
+pub fn build_and_push(
+    components: Vec<String>,
+    images_file: Option<String>,
+    parallel: bool,
+) -> Result<()> {
     crate::log_info!("Building and pushing container images...");
 
     // Default to all components if none specified
@@ -47,8 +51,12 @@ pub fn build_and_push(components: Vec<String>, images_file: Option<String>, para
 
     // Load image configuration
     let images_path = PathBuf::from(&images_file_path);
-    let image_config = ImageConfig::load(&images_path)
-        .with_context(|| format!("Failed to load image configuration from {}", images_file_path))?;
+    let image_config = ImageConfig::load(&images_path).with_context(|| {
+        format!(
+            "Failed to load image configuration from {}",
+            images_file_path
+        )
+    })?;
 
     // Detect container runtime
     let runtime = ContainerRuntime::detect()?;
@@ -117,11 +125,15 @@ fn build_parallel(
                     ProgressStyle::default_spinner()
                         .tick_chars("⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏")
                         .template("{spinner:.cyan} {wide_msg}")
-                        .unwrap()
+                        .unwrap(),
                 );
 
                 // Set initial message with component name
-                pb.set_message(format!("{} {}", component.bright_blue().bold(), "Starting...".dimmed()));
+                pb.set_message(format!(
+                    "{} {}",
+                    component.bright_blue().bold(),
+                    "Starting...".dimmed()
+                ));
 
                 match build_and_push_component_with_progress(
                     project_root,
@@ -131,7 +143,8 @@ fn build_parallel(
                     &pb,
                 ) {
                     Ok(_) => {
-                        pb.finish_with_message(format!("{} {} {}",
+                        pb.finish_with_message(format!(
+                            "{} {} {}",
                             "✓".bright_green().bold(),
                             component.bright_blue().bold(),
                             "Complete".bright_green()
@@ -143,7 +156,8 @@ fn build_parallel(
                         send_progress_update(*count, total);
                     }
                     Err(e) => {
-                        pb.finish_with_message(format!("{} {} {}",
+                        pb.finish_with_message(format!(
+                            "{} {} {}",
                             "✗".bright_red().bold(),
                             component.bright_blue().bold(),
                             "Failed".bright_red()
@@ -171,14 +185,11 @@ fn build_parallel(
     // Check if any errors occurred
     let errs = errors.lock().unwrap();
     if !errs.is_empty() {
-        clear_progress(false);  // Set error state
-        return Err(anyhow::anyhow!(
-            "Build failures:\n{}",
-            errs.join("\n")
-        ));
+        clear_progress(false); // Set error state
+        return Err(anyhow::anyhow!("Build failures:\n{}", errs.join("\n")));
     }
 
-    clear_progress(true);  // Clear progress indicator
+    clear_progress(true); // Clear progress indicator
 
     Ok(())
 }
@@ -195,7 +206,8 @@ fn build_and_push_component_with_progress(
 
     // Step 1: Get image configuration
     pb.set_position(0);
-    pb.set_message(format!("{} {}",
+    pb.set_message(format!(
+        "{} {}",
         component.bright_blue().bold(),
         "[1/4] Loading config...".dimmed()
     ));
@@ -209,7 +221,8 @@ fn build_and_push_component_with_progress(
 
     // Step 2: Get Dockerfile paths
     pb.inc(1);
-    pb.set_message(format!("{} {}",
+    pb.set_message(format!(
+        "{} {}",
         component.bright_blue().bold(),
         "[2/4] Locating Dockerfile...".dimmed()
     ));
@@ -217,7 +230,8 @@ fn build_and_push_component_with_progress(
 
     // Step 3: Build the image
     pb.inc(1);
-    pb.set_message(format!("{} {}",
+    pb.set_message(format!(
+        "{} {}",
         component.bright_blue().bold(),
         "[3/4] Building image...".yellow()
     ));
@@ -226,7 +240,8 @@ fn build_and_push_component_with_progress(
 
     // Step 4: Push the image
     pb.inc(1);
-    pb.set_message(format!("{} {}",
+    pb.set_message(format!(
+        "{} {}",
         component.bright_blue().bold(),
         "[4/4] Pushing image...".yellow()
     ));
@@ -276,10 +291,7 @@ fn build_and_push_component(
 }
 
 /// Get the Dockerfile path and build context for a component
-fn get_dockerfile_and_context(
-    project_root: &Path,
-    component: &str,
-) -> Result<(PathBuf, PathBuf)> {
+fn get_dockerfile_and_context(project_root: &Path, component: &str) -> Result<(PathBuf, PathBuf)> {
     match component {
         "operator" => {
             // Operator uses Dockerfile in project root
@@ -310,8 +322,8 @@ fn build_image(
     context: &Path,
     tag: &str,
 ) -> Result<()> {
-    use std::process::Stdio;
     use std::io::BufReader;
+    use std::process::Stdio;
 
     let runtime_cmd = runtime.command();
 
@@ -351,8 +363,8 @@ fn build_image(
 
 /// Push a container image
 fn push_image(runtime: &ContainerRuntime, tag: &str) -> Result<()> {
-    use std::process::Stdio;
     use std::io::BufReader;
+    use std::process::Stdio;
 
     let runtime_cmd = runtime.command();
 

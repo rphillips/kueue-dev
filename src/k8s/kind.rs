@@ -202,7 +202,9 @@ impl KindCluster {
             .context("Failed to write kubeconfig file")?;
 
         // Get the actual absolute path after writing
-        let final_path = kubeconfig_path.canonicalize().unwrap_or(kubeconfig_path.clone());
+        let final_path = kubeconfig_path
+            .canonicalize()
+            .unwrap_or(kubeconfig_path.clone());
         crate::log_info!("KUBECONFIG written to: {}", final_path.display());
 
         Ok(final_path)

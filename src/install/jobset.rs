@@ -30,7 +30,8 @@ pub fn install(version: &str, kubeconfig: Option<&Path>) -> Result<()> {
         .context("Failed to read JobSet manifest")?;
 
     // Use server-side apply to avoid annotation size limits for large CRDs
-    kubectl::apply_yaml_server_side(&jobset_yaml, kubeconfig).context("Failed to apply JobSet manifest")?;
+    kubectl::apply_yaml_server_side(&jobset_yaml, kubeconfig)
+        .context("Failed to apply JobSet manifest")?;
 
     crate::log_info!("Waiting for JobSet controller to be ready...");
 

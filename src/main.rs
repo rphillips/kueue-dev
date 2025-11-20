@@ -296,12 +296,14 @@ fn main() -> Result<()> {
     // Initialize tracing subscriber with custom formatting
     // Format matches the old style: [LEVEL] message
     tracing_subscriber::registry()
-        .with(fmt::layer()
-            .with_target(false)
-            .with_level(true)
-            .with_ansi(true)
-            .without_time()
-            .with_writer(std::io::stderr))
+        .with(
+            fmt::layer()
+                .with_target(false)
+                .with_level(true)
+                .with_ansi(true)
+                .without_time()
+                .with_writer(std::io::stderr),
+        )
         .with(EnvFilter::from_default_env())
         .init();
 
@@ -325,7 +327,9 @@ fn main() -> Result<()> {
 fn handle_cluster_command(command: ClusterCommands) -> Result<()> {
     match command {
         ClusterCommands::Create { name, cni } => kueue_dev::commands::cluster::create(name, cni),
-        ClusterCommands::Delete { name, force } => kueue_dev::commands::cluster::delete(name, force),
+        ClusterCommands::Delete { name, force } => {
+            kueue_dev::commands::cluster::delete(name, force)
+        }
         ClusterCommands::List => kueue_dev::commands::cluster::list(),
     }
 }
@@ -408,7 +412,11 @@ fn handle_test_command(command: TestCommands) -> Result<()> {
     use std::path::PathBuf;
 
     match command {
-        TestCommands::Run { focus, label_filter, kubeconfig } => {
+        TestCommands::Run {
+            focus,
+            label_filter,
+            kubeconfig,
+        } => {
             let kc = kubeconfig.map(PathBuf::from);
             kueue_dev::commands::test::run_tests_with_retry(focus, label_filter, kc)
         }
@@ -456,7 +464,12 @@ fn handle_test_command(command: TestCommands) -> Result<()> {
                 _ => Err(anyhow::anyhow!("Invalid operator type: {}", r#type)),
             }
         }
-        TestCommands::Upstream { focus, label_filter, kubeconfig, target } => {
+        TestCommands::Upstream {
+            focus,
+            label_filter,
+            kubeconfig,
+            target,
+        } => {
             let kc = kubeconfig.map(PathBuf::from);
             kueue_dev::commands::test::test_upstream(focus, label_filter, kc, target)
         }
@@ -475,9 +488,11 @@ fn handle_images_command(command: ImagesCommands) -> Result<()> {
     use std::path::PathBuf;
 
     match command {
-        ImagesCommands::Build { components, images, parallel } => {
-            kueue_dev::commands::build::build_and_push(components, images, parallel)
-        }
+        ImagesCommands::Build {
+            components,
+            images,
+            parallel,
+        } => kueue_dev::commands::build::build_and_push(components, images, parallel),
         ImagesCommands::List { file } => {
             let path = PathBuf::from(&file);
             let config = ImageConfig::load(&path)?;

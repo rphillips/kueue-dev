@@ -28,7 +28,10 @@ pub struct DeployKindOptions {
 
 /// Handle deploy kind command
 pub fn deploy_kind(options: DeployKindOptions) -> Result<()> {
-    crate::log_info!("Deploying kueue-operator to kind cluster: {}", options.cluster_name);
+    crate::log_info!(
+        "Deploying kueue-operator to kind cluster: {}",
+        options.cluster_name
+    );
 
     // Get project root
     let project_root = get_project_root()?;

@@ -213,7 +213,8 @@ fn cleanup_test_workloads(kubeconfig: Option<&Path>) -> Result<()> {
                     &["delete", "workloads", "-n", namespace, "--all"],
                     kubeconfig,
                 )
-                .is_ok() {
+                .is_ok()
+                {
                     crate::log_info!("Successfully deleted workloads in {}", namespace);
                 }
             }

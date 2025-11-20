@@ -104,7 +104,9 @@ pub fn apply_yaml_server_side(yaml: &str, kubeconfig: Option<&Path>) -> Result<(
             .context("Failed to write YAML to kubectl")?;
     }
 
-    let status = child.wait().context("Failed to wait for kubectl apply --server-side")?;
+    let status = child
+        .wait()
+        .context("Failed to wait for kubectl apply --server-side")?;
 
     if !status.success() {
         return Err(anyhow!("kubectl apply --server-side failed"));

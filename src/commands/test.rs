@@ -37,7 +37,11 @@ pub fn generate_skip_pattern(patterns: &[String]) -> String {
 }
 
 /// Run e2e tests on existing cluster
-pub fn run_tests(focus: Option<String>, label_filter: Option<String>, kubeconfig: Option<PathBuf>) -> Result<()> {
+pub fn run_tests(
+    focus: Option<String>,
+    label_filter: Option<String>,
+    kubeconfig: Option<PathBuf>,
+) -> Result<()> {
     let project_root = get_project_root()?;
 
     // Determine kubeconfig
@@ -68,13 +72,23 @@ pub fn run_tests(focus: Option<String>, label_filter: Option<String>, kubeconfig
     let skip_patterns = &settings.tests.operator_skip_patterns;
 
     // Run tests
-    execute_ginkgo_tests(&ginkgo_bin, &project_root, focus, label_filter, skip_patterns)?;
+    execute_ginkgo_tests(
+        &ginkgo_bin,
+        &project_root,
+        focus,
+        label_filter,
+        skip_patterns,
+    )?;
 
     Ok(())
 }
 
 /// Run tests with retry loop
-pub fn run_tests_with_retry(focus: Option<String>, label_filter: Option<String>, kubeconfig: Option<PathBuf>) -> Result<()> {
+pub fn run_tests_with_retry(
+    focus: Option<String>,
+    label_filter: Option<String>,
+    kubeconfig: Option<PathBuf>,
+) -> Result<()> {
     let project_root = get_project_root()?;
 
     // Determine kubeconfig
@@ -111,7 +125,13 @@ pub fn run_tests_with_retry(focus: Option<String>, label_filter: Option<String>,
 
     // Retry loop
     loop {
-        match execute_ginkgo_tests(&ginkgo_bin, &project_root, focus.clone(), label_filter.clone(), skip_patterns) {
+        match execute_ginkgo_tests(
+            &ginkgo_bin,
+            &project_root,
+            focus.clone(),
+            label_filter.clone(),
+            skip_patterns,
+        ) {
             Ok(_) => {
                 crate::log_info!("");
                 crate::log_info!("==========================================");
@@ -374,7 +394,6 @@ fn build_kueue_config_from_settings(
     builder.build()
 }
 
-
 /// Apply git patches to upstream kueue source
 fn apply_git_patches(upstream_dir: &Path) -> Result<()> {
     crate::log_info!("Applying git patches to upstream kueue...");
@@ -389,13 +408,7 @@ fn apply_git_patches(upstream_dir: &Path) -> Result<()> {
     let patch_files = std::fs::read_dir(&patch_dir)
         .context("Failed to read patch directory")?
         .filter_map(|entry| entry.ok())
-        .filter(|entry| {
-            entry
-                .path()
-                .extension()
-                .and_then(|s| s.to_str())
-                == Some("patch")
-        })
+        .filter(|entry| entry.path().extension().and_then(|s| s.to_str()) == Some("patch"))
         .collect::<Vec<_>>();
 
     if patch_files.is_empty() {
@@ -439,10 +452,7 @@ fn apply_git_patches(upstream_dir: &Path) -> Result<()> {
             }
         } else {
             // Patch cannot be applied, likely already applied
-            crate::log_info!(
-                "Patch {} already applied, skipping",
-                patch_path.display()
-            );
+            crate::log_info!("Patch {} already applied, skipping", patch_path.display());
         }
     }
 
@@ -468,9 +478,7 @@ fn allow_privileged_access(kubeconfig: Option<&PathBuf>) -> Result<()> {
         cmd.env("KUBECONFIG", kc);
     }
 
-    let status = cmd
-        .status()
-        .context("Failed to add privileged SCC")?;
+    let status = cmd.status().context("Failed to add privileged SCC")?;
 
     if !status.success() {
         return Err(anyhow::anyhow!("Failed to add privileged SCC"));
@@ -490,9 +498,7 @@ fn allow_privileged_access(kubeconfig: Option<&PathBuf>) -> Result<()> {
         cmd.env("KUBECONFIG", kc);
     }
 
-    let status = cmd
-        .status()
-        .context("Failed to add anyuid SCC")?;
+    let status = cmd.status().context("Failed to add anyuid SCC")?;
 
     if !status.success() {
         return Err(anyhow::anyhow!("Failed to add anyuid SCC"));
@@ -626,7 +632,10 @@ fn delete_network_policies(kubeconfig: Option<&Path>) -> Result<()> {
     crate::log_info!("Deleting NetworkPolicies...");
 
     // Try to delete NetworkPolicies, but don't fail if there are none
-    match kubectl::run_kubectl(&["delete", "networkpolicies", "--all", "--all-namespaces"], kubeconfig) {
+    match kubectl::run_kubectl(
+        &["delete", "networkpolicies", "--all", "--all-namespaces"],
+        kubeconfig,
+    ) {
         Ok(_) => {
             crate::log_info!("NetworkPolicies deleted successfully");
             Ok(())
@@ -634,7 +643,9 @@ fn delete_network_policies(kubeconfig: Option<&Path>) -> Result<()> {
         Err(e) => {
             // Check if the error is because there are no NetworkPolicies
             let err_msg = e.to_string();
-            if err_msg.contains("No resources found") || err_msg.contains("the server doesn't have a resource type \"networkpolicies\"") {
+            if err_msg.contains("No resources found")
+                || err_msg.contains("the server doesn't have a resource type \"networkpolicies\"")
+            {
                 crate::log_info!("No NetworkPolicies found to delete");
                 Ok(())
             } else {
