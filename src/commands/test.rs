@@ -54,8 +54,11 @@ pub fn run_tests(focus: Option<String>, label_filter: Option<String>, kubeconfig
         ));
     }
 
+    // Canonicalize to get absolute path
+    let kc = kc.canonicalize().unwrap_or(kc);
+
     env::set_var("KUBECONFIG", &kc);
-    crate::log_info!("Using KUBECONFIG: {}", kc.display());
+    crate::log_info!("Using kubeconfig: {}", kc.display());
 
     // Install or check for ginkgo
     let ginkgo_bin = ensure_ginkgo(&project_root)?;
@@ -87,6 +90,9 @@ pub fn run_tests_with_retry(focus: Option<String>, label_filter: Option<String>,
             kc.display()
         ));
     }
+
+    // Canonicalize to get absolute path
+    let kc = kc.canonicalize().unwrap_or(kc);
 
     env::set_var("KUBECONFIG", &kc);
 
@@ -147,6 +153,7 @@ pub fn run_tests_kind(options: TestKindOptions) -> Result<()> {
 
     // Set KUBECONFIG environment variable
     env::set_var("KUBECONFIG", &kubeconfig_path);
+    crate::log_info!("Kubeconfig: {}", kubeconfig_path.display());
 
     // Install Calico
     calico::install(Some(&kubeconfig_path))?;

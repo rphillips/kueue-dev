@@ -169,7 +169,22 @@ impl KindCluster {
     fn export_kubeconfig(&self, project_root: &Path) -> Result<PathBuf> {
         let kubeconfig_path = project_root.join("kube.kubeconfig");
 
-        crate::log_info!("Exporting kubeconfig to {}...", kubeconfig_path.display());
+        // Canonicalize to get absolute path
+        let absolute_path = kubeconfig_path.canonicalize().unwrap_or_else(|_| {
+            // If file doesn't exist yet, manually construct absolute path
+            std::env::current_dir()
+                .ok()
+                .and_then(|cwd| {
+                    if project_root.is_absolute() {
+                        Some(kubeconfig_path.clone())
+                    } else {
+                        Some(cwd.join(project_root).join("kube.kubeconfig"))
+                    }
+                })
+                .unwrap_or(kubeconfig_path.clone())
+        });
+
+        crate::log_info!("Exporting kubeconfig to {}...", absolute_path.display());
 
         let output = Command::new("kind")
             .args(["get", "kubeconfig", "--name", &self.name])
@@ -186,9 +201,11 @@ impl KindCluster {
         std::fs::write(&kubeconfig_path, output.stdout)
             .context("Failed to write kubeconfig file")?;
 
-        crate::log_info!("KUBECONFIG written to: {}", kubeconfig_path.display());
+        // Get the actual absolute path after writing
+        let final_path = kubeconfig_path.canonicalize().unwrap_or(kubeconfig_path.clone());
+        crate::log_info!("KUBECONFIG written to: {}", final_path.display());
 
-        Ok(kubeconfig_path)
+        Ok(final_path)
     }
 
     /// Get kubeconfig path (export if needed)
@@ -199,7 +216,8 @@ impl KindCluster {
             return self.export_kubeconfig(project_root);
         }
 
-        Ok(kubeconfig_path)
+        // Return canonicalized path
+        Ok(kubeconfig_path.canonicalize().unwrap_or(kubeconfig_path))
     }
 
     /// Generate kind cluster config YAML

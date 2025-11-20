@@ -66,6 +66,8 @@ fn cleanup_resource(
                     continue;
                 }
 
+                crate::log_info!("Cleaning up {}", resource);
+
                 let mut patch_args = vec![
                     "patch",
                     resource,
@@ -92,7 +94,9 @@ fn cleanup_resource(
                 delete_args.push("--all-namespaces");
             }
 
-            kubectl::run_kubectl(&delete_args, kubeconfig).ok(); // Ignore errors
+            if kubectl::run_kubectl(&delete_args, kubeconfig).is_ok() {
+                crate::log_info!("Successfully deleted {}", resource_type);
+            }
         }
     }
 
@@ -119,6 +123,8 @@ fn cleanup_priority_classes(kubeconfig: Option<&Path>) -> Result<()> {
                     continue;
                 }
 
+                crate::log_info!("Cleaning up {}", pc);
+
                 kubectl::run_kubectl(
                     &[
                         "patch",
@@ -136,7 +142,9 @@ fn cleanup_priority_classes(kubeconfig: Option<&Path>) -> Result<()> {
             for pc in &priority_classes {
                 let pc = pc.trim();
                 if !pc.is_empty() {
-                    kubectl::run_kubectl(&["delete", pc], kubeconfig).ok(); // Ignore errors
+                    if kubectl::run_kubectl(&["delete", pc], kubeconfig).is_ok() {
+                        crate::log_info!("Successfully deleted {}", pc);
+                    }
                 }
             }
         }
@@ -184,6 +192,8 @@ fn cleanup_test_workloads(kubeconfig: Option<&Path>) -> Result<()> {
                         continue;
                     }
 
+                    crate::log_info!("Cleaning up {} in {}", workload, namespace);
+
                     kubectl::run_kubectl(
                         &[
                             "patch",
@@ -199,11 +209,13 @@ fn cleanup_test_workloads(kubeconfig: Option<&Path>) -> Result<()> {
                     .ok(); // Ignore errors
                 }
 
-                kubectl::run_kubectl(
+                if kubectl::run_kubectl(
                     &["delete", "workloads", "-n", namespace, "--all"],
                     kubeconfig,
                 )
-                .ok();
+                .is_ok() {
+                    crate::log_info!("Successfully deleted workloads in {}", namespace);
+                }
             }
         }
     }
@@ -238,6 +250,8 @@ fn cleanup_test_namespaces(kubeconfig: Option<&Path>) -> Result<()> {
                     continue;
                 }
 
+                crate::log_info!("Cleaning up {}", ns);
+
                 kubectl::run_kubectl(
                     &[
                         "patch",
@@ -255,7 +269,9 @@ fn cleanup_test_namespaces(kubeconfig: Option<&Path>) -> Result<()> {
             for ns in &test_namespaces {
                 let ns = ns.trim();
                 if !ns.is_empty() {
-                    kubectl::run_kubectl(&["delete", ns], kubeconfig).ok(); // Ignore errors
+                    if kubectl::run_kubectl(&["delete", ns], kubeconfig).is_ok() {
+                        crate::log_info!("Successfully deleted {}", ns);
+                    }
                 }
             }
         }

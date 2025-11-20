@@ -286,9 +286,9 @@ fn main() -> Result<()> {
 
     // Set up logging based on verbosity level
     let log_level = match cli.verbose {
-        0 => "warn",  // Default: only warnings and errors
-        1 => "info",  // -v: info level
-        2 => "debug", // -vv: debug level
+        0 => "info",  // Default: info level
+        1 => "debug", // -v: debug level
+        2 => "trace", // -vv: trace level
         _ => "trace", // -vvv: trace level
     };
     std::env::set_var("RUST_LOG", log_level);

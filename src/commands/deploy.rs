@@ -73,7 +73,11 @@ pub fn deploy_kind(options: DeployKindOptions) -> Result<()> {
         ));
     }
 
+    // Canonicalize to get absolute path
+    let kubeconfig_path = kubeconfig_path.canonicalize().unwrap_or(kubeconfig_path);
+
     env::set_var("KUBECONFIG", &kubeconfig_path);
+    crate::log_info!("Using kubeconfig: {}", kubeconfig_path.display());
 
     // Detect container runtime
     let runtime = ContainerRuntime::detect()?;
