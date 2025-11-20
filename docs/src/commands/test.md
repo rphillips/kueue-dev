@@ -109,7 +109,7 @@ kueue-dev test operator --type openshift --label-filter "!disruptive"
 
 ### `test upstream`
 
-Run upstream kueue tests (requires OpenShift cluster).
+Run upstream kueue tests (requires OpenShift cluster or Kind cluster).
 
 **Usage:**
 ```bash
@@ -139,6 +139,15 @@ kueue-dev test upstream --target multicluster
 # Run with custom kubeconfig
 kueue-dev test upstream --kubeconfig /path/to/kubeconfig
 ```
+
+**Kind Cluster Behavior:**
+
+When running upstream tests on a Kind cluster, the following actions are automatically performed:
+
+1. **Operator Scale Down** - The `openshift-kueue-operator` deployment is scaled to 0 replicas and the command waits for all operator pods to terminate before proceeding
+2. **NetworkPolicy Removal** - All NetworkPolicies are deleted from the cluster to avoid networking interference with upstream tests
+
+This ensures that upstream tests run in a clean environment without conflicts from the operator or network policies.
 
 ## Cluster Type Comparison
 
