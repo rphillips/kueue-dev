@@ -137,6 +137,7 @@ fn build_parallel(
                     component.bright_blue().bold(),
                     "Starting...".dimmed()
                 ));
+                pb.enable_steady_tick(std::time::Duration::from_millis(100));
 
                 match build_and_push_component_with_progress(
                     &component,
@@ -146,13 +147,14 @@ fn build_parallel(
                     &images_file_path,
                 ) {
                     Ok(_) => {
-                        pb.finish_and_clear();
-                        mp.println(format!(
+                        // Change style to remove spinner, keep only message
+                        pb.set_style(ProgressStyle::default_bar().template("{wide_msg}").unwrap());
+                        pb.finish_with_message(format!(
                             "{} {} {}",
                             "✅".bright_green(),
                             component.bright_blue().bold(),
                             "Complete".bright_green()
-                        )).unwrap();
+                        ));
 
                         // Update completion counter and progress
                         let mut count = completed.lock().unwrap();
@@ -160,13 +162,14 @@ fn build_parallel(
                         send_progress_update(*count, total);
                     }
                     Err(e) => {
-                        pb.finish_and_clear();
-                        mp.println(format!(
+                        // Change style to remove spinner, keep only message
+                        pb.set_style(ProgressStyle::default_bar().template("{wide_msg}").unwrap());
+                        pb.finish_with_message(format!(
                             "{} {} {}",
                             "✗".bright_red().bold(),
                             component.bright_blue().bold(),
                             "Failed".bright_red()
-                        )).unwrap();
+                        ));
                         let mut errs = errors.lock().unwrap();
                         errs.push(format!("Failed to build {}: {}", component, e));
 
