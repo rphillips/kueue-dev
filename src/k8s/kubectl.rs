@@ -199,6 +199,144 @@ pub fn get_with_jsonpath(
     )
 }
 
+/// Get operator version from pod logs
+pub fn get_operator_version(kubeconfig: Option<&Path>) -> Result<String> {
+    // Get the pod name
+    let pod_name = run_kubectl_output(
+        &[
+            "get",
+            "pods",
+            "-n",
+            "openshift-kueue-operator",
+            "-l",
+            "name=openshift-kueue-operator",
+            "-o",
+            "jsonpath={.items[0].metadata.name}",
+        ],
+        kubeconfig,
+    )?;
+
+    if pod_name.is_empty() {
+        return Err(anyhow!("No operator pod found"));
+    }
+
+    // Get first 10 lines of logs
+    let logs = run_kubectl_output(
+        &[
+            "logs",
+            &pod_name,
+            "-n",
+            "openshift-kueue-operator",
+            "--tail=10",
+        ],
+        kubeconfig,
+    )?;
+
+    // Look for version in logs (common patterns: "version", "Version", "v=")
+    for line in logs.lines() {
+        if let Some(version) = extract_version_from_log(line) {
+            return Ok(version);
+        }
+    }
+
+    Err(anyhow!("Version not found in operator logs"))
+}
+
+/// Get kueue-controller-manager version from pod logs
+pub fn get_kueue_manager_version(namespace: &str, kubeconfig: Option<&Path>) -> Result<String> {
+    // Get the pod name
+    let pod_name = run_kubectl_output(
+        &[
+            "get",
+            "pods",
+            "-n",
+            namespace,
+            "-l",
+            "control-plane=controller-manager",
+            "-o",
+            "jsonpath={.items[0].metadata.name}",
+        ],
+        kubeconfig,
+    )?;
+
+    if pod_name.is_empty() {
+        return Err(anyhow!("No kueue-controller-manager pod found"));
+    }
+
+    // Get first 10 lines of logs
+    let logs = run_kubectl_output(
+        &["logs", &pod_name, "-n", namespace, "--tail=10"],
+        kubeconfig,
+    )?;
+
+    // Look for version in logs
+    for line in logs.lines() {
+        if let Some(version) = extract_version_from_log(line) {
+            return Ok(version);
+        }
+    }
+
+    Err(anyhow!(
+        "Version not found in kueue-controller-manager logs"
+    ))
+}
+
+/// Extract version from a log line
+fn extract_version_from_log(line: &str) -> Option<String> {
+    // Look for common version patterns in logs
+    // Examples:
+    // - openshift-kueue-operator version v0.0.0-unknown-78aa1392-78aa1392
+    // - "gitVersion":"v0.15.0-rc.0-51-g8e20b4c71-dirty"
+    // - "version": "v1.2.3"
+
+    // Check for gitVersion in JSON format (kueue-controller-manager)
+    if let Some(pos) = line.find("\"gitVersion\"") {
+        let after = &line[pos..];
+        if let Some(start) = after.find(':') {
+            let value_start = &after[start + 1..].trim_start();
+            if let Some(quote_start) = value_start.find('"') {
+                if let Some(quote_end) = value_start[quote_start + 1..].find('"') {
+                    return Some(
+                        value_start[quote_start + 1..quote_start + 1 + quote_end].to_string(),
+                    );
+                }
+            }
+        }
+    }
+
+    // Check for "openshift-kueue-operator version X" format
+    if let Some(pos) = line.find("openshift-kueue-operator version") {
+        let after = &line[pos + "openshift-kueue-operator version".len()..].trim();
+        if let Some(end) = after.find(|c: char| c.is_whitespace()) {
+            return Some(after[..end].to_string());
+        } else if !after.is_empty() {
+            return Some(after.to_string());
+        }
+    }
+
+    // Generic version extraction
+    if let Some(pos) = line.to_lowercase().find("version") {
+        let after_version = &line[pos..];
+        // Try to extract quoted version
+        if let Some(start) = after_version.find('"') {
+            if let Some(end) = after_version[start + 1..].find('"') {
+                return Some(after_version[start + 1..start + 1 + end].to_string());
+            }
+        }
+        // Try to extract version after colon or equals
+        if let Some(start) = after_version.find(':').or_else(|| after_version.find('=')) {
+            let version_part = after_version[start + 1..].trim();
+            if let Some(end) = version_part.find(|c: char| c.is_whitespace() || c == ',') {
+                return Some(version_part[..end].to_string());
+            } else if !version_part.is_empty() {
+                return Some(version_part.to_string());
+            }
+        }
+    }
+
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -207,5 +345,25 @@ mod tests {
     fn test_kubectl_module_exists() {
         // Basic compile test
         assert!(true);
+    }
+
+    #[test]
+    fn test_extract_operator_version() {
+        let log_line = "I1120 21:25:34.555797       1 builder.go:304] openshift-kueue-operator version v0.0.0-unknown-78aa1392-78aa1392";
+        let version = extract_version_from_log(log_line);
+        assert_eq!(
+            version,
+            Some("v0.0.0-unknown-78aa1392-78aa1392".to_string())
+        );
+    }
+
+    #[test]
+    fn test_extract_kueue_version_json() {
+        let log_line = r#"{"level":"info","ts":"2025-11-20T21:26:00.770553599Z","logger":"setup","caller":"kueue/main.go:155","msg":"Initializing","gitVersion":"v0.15.0-rc.0-51-g8e20b4c71-dirty","gitCommit":"8e20b4c71caa998bd11d1d27a52d4e8d0982a341","buildDate":"2025-11-18T18:14:49Z"}"#;
+        let version = extract_version_from_log(log_line);
+        assert_eq!(
+            version,
+            Some("v0.15.0-rc.0-51-g8e20b4c71-dirty".to_string())
+        );
     }
 }

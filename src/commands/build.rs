@@ -10,7 +10,7 @@ use crate::config::settings::Settings;
 use crate::utils::ContainerRuntime;
 
 /// Valid component names that can be built
-const VALID_COMPONENTS: &[&str] = &["operator", "operand", "must-gather"];
+const VALID_COMPONENTS: &[&str] = &["operator", "operand", "must-gather", "bundle"];
 
 /// Build and push container images
 pub fn build_and_push(
@@ -18,7 +18,20 @@ pub fn build_and_push(
     images_file: Option<String>,
     parallel: bool,
 ) -> Result<()> {
+    // Load settings BEFORE changing directories
+    // This ensures we read the config from where the user is running the command
+    let images_file_path = if let Some(path) = images_file {
+        path
+    } else {
+        let settings = Settings::load();
+        settings.defaults.images_file.clone()
+    };
+
+    // Ensure we're in the operator source directory
+    let source_path = crate::utils::ensure_operator_source_directory()?;
+
     crate::log_info!("Building and pushing container images...");
+    crate::log_info!("Kueue source path: {}", source_path.display());
 
     // Default to all components if none specified
     let components = if components.is_empty() {
@@ -39,14 +52,6 @@ pub fn build_and_push(
         }
     }
 
-    // Determine images file path from config or command line
-    let images_file_path = if let Some(path) = images_file {
-        path
-    } else {
-        let settings = Settings::load();
-        settings.defaults.images_file.clone()
-    };
-
     crate::log_info!("Using images file: {}", images_file_path);
 
     // Load image configuration
@@ -62,16 +67,13 @@ pub fn build_and_push(
     let runtime = ContainerRuntime::detect()?;
     crate::log_info!("Using container runtime: {}", runtime);
 
-    // Get project root (should be kueue-operator directory)
-    let project_root = get_project_root()?;
-
     if parallel {
         crate::log_info!("Building components in parallel...");
-        build_parallel(&project_root, &components, &image_config, &runtime)?;
+        build_parallel(&components, &image_config, &runtime, &images_file_path)?;
     } else {
         // Build and push each component sequentially
         for component in &components {
-            build_and_push_component(&project_root, component, &image_config, &runtime)?;
+            build_and_push_component(component, &image_config, &runtime, &images_file_path)?;
         }
     }
 
@@ -86,10 +88,10 @@ pub fn build_and_push(
 
 /// Build and push components in parallel
 fn build_parallel(
-    project_root: &Path,
     components: &[String],
     image_config: &ImageConfig,
     runtime: &ContainerRuntime,
+    images_file_path: &str,
 ) -> Result<()> {
     use indicatif::{MultiProgress, ProgressBar, ProgressStyle};
     use std::sync::{Arc, Mutex};
@@ -115,6 +117,7 @@ fn build_parallel(
             let errors = Arc::clone(&errors);
             let completed = Arc::clone(&completed);
             let mp = Arc::clone(&multi_progress);
+            let images_file_path = images_file_path.to_string();
 
             let handle = s.spawn(move || {
                 use owo_colors::OwoColorize;
@@ -136,11 +139,11 @@ fn build_parallel(
                 ));
 
                 match build_and_push_component_with_progress(
-                    project_root,
                     &component,
                     image_config,
                     runtime,
                     &pb,
+                    &images_file_path,
                 ) {
                     Ok(_) => {
                         pb.finish_with_message(format!(
@@ -196,11 +199,11 @@ fn build_parallel(
 
 /// Build and push a single component with progress tracking
 fn build_and_push_component_with_progress(
-    project_root: &Path,
     component: &str,
     image_config: &ImageConfig,
     runtime: &ContainerRuntime,
     pb: &indicatif::ProgressBar,
+    images_file_path: &str,
 ) -> Result<()> {
     use owo_colors::OwoColorize;
 
@@ -216,6 +219,7 @@ fn build_and_push_component_with_progress(
         "operator" => image_config.operator()?,
         "operand" => image_config.operand()?,
         "must-gather" => image_config.must_gather()?,
+        "bundle" => image_config.bundle()?,
         _ => unreachable!("Component validation should have caught this"),
     };
 
@@ -226,7 +230,7 @@ fn build_and_push_component_with_progress(
         component.bright_blue().bold(),
         "[2/4] Locating Dockerfile...".dimmed()
     ));
-    let (dockerfile, context) = get_dockerfile_and_context(project_root, component)?;
+    let (dockerfile, context) = get_dockerfile_and_context(component)?;
 
     // Step 3: Build the image
     pb.inc(1);
@@ -236,7 +240,10 @@ fn build_and_push_component_with_progress(
         "[3/4] Building image...".yellow()
     ));
     pb.enable_steady_tick(std::time::Duration::from_millis(100));
-    build_image(runtime, &dockerfile, &context, image_tag)?;
+
+    // Get build args for this component
+    let build_args = get_build_args(component, image_config, images_file_path)?;
+    build_image(runtime, &dockerfile, &context, image_tag, &build_args)?;
 
     // Step 4: Push the image
     pb.inc(1);
@@ -253,10 +260,10 @@ fn build_and_push_component_with_progress(
 
 /// Build and push a single component (sequential mode)
 fn build_and_push_component(
-    project_root: &Path,
     component: &str,
     image_config: &ImageConfig,
     runtime: &ContainerRuntime,
+    images_file_path: &str,
 ) -> Result<()> {
     crate::log_info!("");
     crate::log_info!("==========================================");
@@ -268,19 +275,26 @@ fn build_and_push_component(
         "operator" => image_config.operator()?,
         "operand" => image_config.operand()?,
         "must-gather" => image_config.must_gather()?,
+        "bundle" => image_config.bundle()?,
         _ => unreachable!("Component validation should have caught this"),
     };
 
     crate::log_info!("Image tag: {}", image_tag);
 
     // Get the Dockerfile path and build context
-    let (dockerfile, context) = get_dockerfile_and_context(project_root, component)?;
+    let (dockerfile, context) = get_dockerfile_and_context(component)?;
 
     crate::log_info!("Dockerfile: {}", dockerfile.display());
     crate::log_info!("Build context: {}", context.display());
 
+    // Get build args for this component
+    let build_args = get_build_args(component, image_config, images_file_path)?;
+    if !build_args.is_empty() {
+        crate::log_info!("Build args: {:?}", build_args);
+    }
+
     // Build the image
-    build_image(runtime, &dockerfile, &context, image_tag)?;
+    build_image(runtime, &dockerfile, &context, image_tag, &build_args)?;
 
     // Push the image
     push_image(runtime, image_tag)?;
@@ -290,25 +304,61 @@ fn build_and_push_component(
     Ok(())
 }
 
+/// Get build arguments for a component
+fn get_build_args(
+    component: &str,
+    _image_config: &ImageConfig,
+    images_file_path: &str,
+) -> Result<Vec<(String, String)>> {
+    match component {
+        "bundle" => {
+            // Bundle needs RELATED_IMAGE_FILE build arg
+            // The Dockerfile expects just the filename (e.g., "related_images.json"),
+            // not a full path, since it will COPY from the build context
+            let images_file_path = PathBuf::from(images_file_path);
+
+            // Get just the filename
+            let images_file = images_file_path
+                .file_name()
+                .and_then(|n| n.to_str())
+                .ok_or_else(|| anyhow::anyhow!("Invalid images file path"))?
+                .to_string();
+
+            Ok(vec![("RELATED_IMAGE_FILE".to_string(), images_file)])
+        }
+        _ => {
+            // No build args needed for other components
+            Ok(vec![])
+        }
+    }
+}
+
 /// Get the Dockerfile path and build context for a component
-fn get_dockerfile_and_context(project_root: &Path, component: &str) -> Result<(PathBuf, PathBuf)> {
+fn get_dockerfile_and_context(component: &str) -> Result<(PathBuf, PathBuf)> {
+    // We're already in the operator source directory after ensure_operator_source_directory()
+    let source_path = std::env::current_dir().context("Failed to get current directory")?;
+
     match component {
         "operator" => {
             // Operator uses Dockerfile in project root
-            Ok((project_root.join("Dockerfile"), project_root.to_path_buf()))
+            Ok((source_path.join("Dockerfile"), source_path.clone()))
         }
         "operand" => {
             // Operand (kueue) uses Dockerfile.kueue in project root
-            Ok((
-                project_root.join("Dockerfile.kueue"),
-                project_root.to_path_buf(),
-            ))
+            Ok((source_path.join("Dockerfile.kueue"), source_path.clone()))
         }
         "must-gather" => {
             // Must-gather has its own directory
             Ok((
-                project_root.join("must-gather/Dockerfile"),
-                project_root.to_path_buf(),
+                source_path.join("must-gather/Dockerfile"),
+                source_path.clone(),
+            ))
+        }
+        "bundle" => {
+            // Bundle uses bundle.developer.Dockerfile in project root
+            Ok((
+                source_path.join("bundle.developer.Dockerfile"),
+                source_path.clone(),
             ))
         }
         _ => unreachable!("Component validation should have caught this"),
@@ -321,6 +371,7 @@ fn build_image(
     dockerfile: &Path,
     context: &Path,
     tag: &str,
+    build_args: &[(String, String)],
 ) -> Result<()> {
     use std::io::BufReader;
     use std::process::Stdio;
@@ -328,10 +379,15 @@ fn build_image(
     let runtime_cmd = runtime.command();
 
     let mut cmd = Command::new(runtime_cmd);
-    cmd.args(["build", "-f"])
-        .arg(dockerfile)
-        .args(["-t", tag])
-        .arg(context)
+    cmd.args(["build", "-f"]).arg(dockerfile).args(["-t", tag]);
+
+    // Add build arguments
+    for (key, value) in build_args {
+        cmd.arg("--build-arg");
+        cmd.arg(format!("{}={}", key, value));
+    }
+
+    cmd.arg(context)
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
@@ -438,22 +494,6 @@ fn stream_output_with_rolling_buffer<R: std::io::BufRead>(reader: R, buffer_size
     if lines_displayed > 0 {
         println!();
     }
-}
-
-/// Get project root directory
-fn get_project_root() -> Result<PathBuf> {
-    let current_dir = std::env::current_dir()?;
-
-    // Check if we're in kueue-dev directory
-    if current_dir.file_name().and_then(|n| n.to_str()) == Some("kueue-dev") {
-        // Go up one level to kueue-operator root
-        if let Some(parent) = current_dir.parent() {
-            return Ok(parent.to_path_buf());
-        }
-    }
-
-    // Otherwise use current directory
-    Ok(current_dir)
 }
 
 /// Send OSC 9;4 progress update

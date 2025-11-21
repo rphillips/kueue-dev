@@ -17,6 +17,15 @@ struct Cli {
     #[arg(short, long, global = true, action = clap::ArgAction::Count)]
     verbose: u8,
 
+    /// Path to kueue-operator source directory
+    #[arg(
+        short = 's',
+        long = "source",
+        global = true,
+        env = "KUEUE_OPERATOR_SOURCE"
+    )]
+    operator_source: Option<String>,
+
     #[command(subcommand)]
     command: Commands,
 }
@@ -95,9 +104,13 @@ enum ClusterCommands {
         #[arg(short, long, default_value = "kueue-test")]
         name: String,
 
-        /// CNI provider (calico or default)
-        #[arg(long, default_value = "calico")]
+        /// CNI provider (default or calico)
+        #[arg(long, default_value = "default")]
         cni: String,
+
+        /// Path to save kubeconfig file (if not specified, kubeconfig won't be saved)
+        #[arg(short, long)]
+        kubeconfig: Option<String>,
     },
 
     /// Delete a kind cluster
@@ -127,6 +140,10 @@ enum DeployCommands {
         #[arg(long = "related-images")]
         images: Option<String>,
 
+        /// Path to kubeconfig file
+        #[arg(short, long, env = "KUBECONFIG")]
+        kubeconfig: Option<String>,
+
         /// Skip tests after deployment
         #[arg(long)]
         skip_tests: bool,
@@ -143,6 +160,10 @@ enum DeployCommands {
         /// Kueue CR namespace (default: openshift-kueue-operator)
         #[arg(long)]
         kueue_namespace: Option<String>,
+
+        /// Deploy without OLM bundle (use direct manifest deployment)
+        #[arg(long)]
+        no_bundle: bool,
     },
 
     /// Deploy via OLM bundle
@@ -307,6 +328,9 @@ fn main() -> Result<()> {
         .with(EnvFilter::from_default_env())
         .init();
 
+    // Set the operator source path from CLI if provided
+    kueue_dev::utils::set_cli_operator_source(cli.operator_source);
+
     match cli.command {
         Commands::Cluster { command } => handle_cluster_command(command),
         Commands::Deploy { command } => handle_deploy_command(command),
@@ -326,7 +350,11 @@ fn main() -> Result<()> {
 
 fn handle_cluster_command(command: ClusterCommands) -> Result<()> {
     match command {
-        ClusterCommands::Create { name, cni } => kueue_dev::commands::cluster::create(name, cni),
+        ClusterCommands::Create {
+            name,
+            cni,
+            kubeconfig,
+        } => kueue_dev::commands::cluster::create(name, cni, kubeconfig),
         ClusterCommands::Delete { name, force } => {
             kueue_dev::commands::cluster::delete(name, force)
         }
@@ -339,10 +367,12 @@ fn handle_deploy_command(command: DeployCommands) -> Result<()> {
         DeployCommands::Kind {
             name,
             images,
+            kubeconfig,
             skip_tests,
             skip_kueue_cr,
             kueue_frameworks,
             kueue_namespace,
+            no_bundle,
         } => {
             use kueue_dev::commands::deploy::DeployKindOptions;
             use kueue_dev::config::settings::Settings;
@@ -354,10 +384,12 @@ fn handle_deploy_command(command: DeployCommands) -> Result<()> {
             kueue_dev::commands::deploy::deploy_kind(DeployKindOptions {
                 cluster_name: name,
                 images_file,
+                kubeconfig,
                 skip_tests,
                 skip_kueue_cr,
                 kueue_frameworks,
                 kueue_namespace,
+                use_bundle: !no_bundle,
             })
         }
         DeployCommands::Olm { bundle, name } => {

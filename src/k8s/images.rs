@@ -17,6 +17,7 @@ pub fn load_images_to_kind(
     let operator_image = image_config.operator()?;
     let operand_image = image_config.operand()?;
     let must_gather_image = image_config.must_gather()?;
+    let bundle_image = image_config.bundle()?;
 
     // Image used by test workloads (Jobs, Pods, etc)
     let workload_image = std::env::var("CONTAINER_IMAGE")
@@ -26,6 +27,7 @@ pub fn load_images_to_kind(
         ("operator", operator_image),
         ("operand", operand_image),
         ("must-gather", must_gather_image),
+        ("bundle", bundle_image),
         ("workload", workload_image.as_str()),
     ];
 

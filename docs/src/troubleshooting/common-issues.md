@@ -53,6 +53,45 @@ docker pull quay.io/openshift/kueue-operator:latest
 kueue-dev images list --file related_images.json
 ```
 
+### "Image 'X' not found in configuration"
+
+**Symptom**: Error message like `Image 'bundle' not found in configuration` when building images
+
+**Cause**: The configuration file (`.kueue-dev.toml`) is not being found, causing the tool to fall back to default settings.
+
+**Solution**:
+1. **Verify your configuration file exists** in the current directory or `~/.config/kueue-dev/config.toml`:
+   ```bash
+   # Check for local config
+   ls -la .kueue-dev.toml
+
+   # Check for global config
+   ls -la ~/.config/kueue-dev/config.toml
+   ```
+
+2. **Check that the images file path is correct** in your config:
+   ```toml
+   [defaults]
+   images_file = "/path/to/related_images.json"
+   ```
+
+3. **Verify the images file contains all required images**:
+   ```bash
+   cat /path/to/related_images.json
+   ```
+
+   Make sure it includes entries for all components (operator, operand, must-gather, bundle):
+   ```json
+   [
+     {"name": "operator", "image": "quay.io/user/kueue-operator:latest"},
+     {"name": "operand", "image": "quay.io/user/kueue:latest"},
+     {"name": "must-gather", "image": "quay.io/user/kueue-must-gather:latest"},
+     {"name": "bundle", "image": "quay.io/user/kueue-bundle:latest"}
+   ]
+   ```
+
+4. **Use an absolute path** for the images file in your config to avoid path resolution issues.
+
 See specific troubleshooting guides:
 - [Cluster Connection](./cluster-connection.md)
 - [Deployment Failures](./deployment.md)

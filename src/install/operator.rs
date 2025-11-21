@@ -7,10 +7,10 @@ use anyhow::{Context, Result};
 use std::path::Path;
 
 /// Install Kueue operator CRDs
-pub fn install_crds(project_root: &Path, kubeconfig: Option<&Path>) -> Result<()> {
+pub fn install_crds(kubeconfig: Option<&Path>) -> Result<()> {
     crate::log_info!("Installing CRDs from deploy/crd...");
 
-    let crd_dir = project_root.join("deploy/crd");
+    let crd_dir = crate::utils::operator_source_join("deploy/crd");
 
     if !crd_dir.exists() {
         return Err(anyhow::anyhow!(
@@ -28,17 +28,12 @@ pub fn install_crds(project_root: &Path, kubeconfig: Option<&Path>) -> Result<()
 }
 
 /// Install Kueue operator
-pub fn install_operator(
-    project_root: &Path,
-    image_config: &ImageConfig,
-    kubeconfig: Option<&Path>,
-) -> Result<()> {
-    install_operator_with_config(project_root, image_config, None, kubeconfig)
+pub fn install_operator(image_config: &ImageConfig, kubeconfig: Option<&Path>) -> Result<()> {
+    install_operator_with_config(image_config, None, kubeconfig)
 }
 
 /// Install Kueue operator with optional Kueue CR configuration
 pub fn install_operator_with_config(
-    project_root: &Path,
     image_config: &ImageConfig,
     kueue_config: Option<&KueueConfig>,
     kubeconfig: Option<&Path>,
@@ -64,7 +59,7 @@ pub fn install_operator_with_config(
     );
 
     // Copy deploy files to temp directory
-    copy_deploy_files(project_root, temp_path)?;
+    copy_deploy_files(temp_path)?;
 
     // Update deployment file with images
     update_deployment_images(temp_path, operator_image, operand_image, must_gather_image)?;
@@ -72,8 +67,8 @@ pub fn install_operator_with_config(
     // Apply manifests in order
     apply_operator_manifests(temp_path, kubeconfig)?;
 
-    // Wait for operator to be ready
-    crate::log_info!("Waiting for operator deployment to be ready...");
+    // Wait for operator deployment to be available
+    crate::log_info!("Waiting for operator deployment to be available...");
     kubectl::wait_for_condition(
         "deployment/openshift-kueue-operator",
         "condition=Available",
@@ -81,9 +76,13 @@ pub fn install_operator_with_config(
         "300s",
         kubeconfig,
     )
-    .context("Operator deployment not ready")?;
+    .context("Operator deployment not available")?;
 
-    crate::log_info!("Operator installed successfully");
+    crate::log_info!("Operator deployment is available");
+
+    // Give the operator time to start its controllers and be ready to reconcile
+    crate::log_info!("Waiting for operator controllers to be ready...");
+    std::thread::sleep(std::time::Duration::from_secs(30));
 
     // Create Kueue CR if config provided
     if let Some(config) = kueue_config {
@@ -102,12 +101,73 @@ pub fn create_kueue_cr(config: &KueueConfig, kubeconfig: Option<&Path>) -> Resul
     kubectl::apply_yaml(&yaml, kubeconfig).context("Failed to create Kueue CR")?;
 
     crate::log_info!("Kueue CR created successfully");
+
+    // Wait for operator to reconcile and create the kueue-controller-manager deployment
+    crate::log_info!("Waiting for operator to create kueue-controller-manager deployment...");
+    wait_for_deployment_to_exist(
+        "kueue-controller-manager",
+        &config.namespace,
+        60,
+        kubeconfig,
+    )
+    .context("Kueue controller-manager deployment was not created by operator")?;
+
+    // Now wait for the deployment to be available
+    crate::log_info!("Waiting for kueue-controller-manager deployment to be available...");
+    kubectl::wait_for_condition(
+        "deployment/kueue-controller-manager",
+        "condition=Available",
+        Some(&config.namespace),
+        "300s",
+        kubeconfig,
+    )
+    .context("Kueue controller-manager deployment did not become available")?;
+
+    crate::log_info!("Kueue controller-manager deployment is available");
+
     Ok(())
 }
 
+/// Wait for a deployment to exist (be created by reconciliation)
+fn wait_for_deployment_to_exist(
+    name: &str,
+    namespace: &str,
+    timeout_secs: u64,
+    kubeconfig: Option<&Path>,
+) -> Result<()> {
+    use std::time::{Duration, Instant};
+
+    let start = Instant::now();
+    let timeout = Duration::from_secs(timeout_secs);
+
+    loop {
+        // Check if deployment exists
+        let result =
+            kubectl::run_kubectl_output(&["get", "deployment", name, "-n", namespace], kubeconfig);
+
+        if result.is_ok() {
+            crate::log_info!("Deployment {} created", name);
+            return Ok(());
+        }
+
+        // Check timeout
+        if start.elapsed() >= timeout {
+            return Err(anyhow::anyhow!(
+                "Timeout waiting for deployment/{} to be created in namespace {}. \
+                 The operator may not be reconciling the Kueue CR properly.",
+                name,
+                namespace
+            ));
+        }
+
+        // Wait before retrying (poll every 5 seconds)
+        std::thread::sleep(Duration::from_secs(5));
+    }
+}
+
 /// Copy deploy files to temporary directory
-fn copy_deploy_files(project_root: &Path, temp_dir: &Path) -> Result<()> {
-    let deploy_dir = project_root.join("deploy");
+fn copy_deploy_files(temp_dir: &Path) -> Result<()> {
+    let deploy_dir = crate::utils::operator_source_join("deploy");
 
     if !deploy_dir.exists() {
         return Err(anyhow::anyhow!(
@@ -117,7 +177,7 @@ fn copy_deploy_files(project_root: &Path, temp_dir: &Path) -> Result<()> {
     }
 
     // Copy all .yaml files
-    for entry in std::fs::read_dir(&deploy_dir)? {
+    for entry in std::fs::read_dir(deploy_dir)? {
         let entry = entry?;
         let path = entry.path();
 

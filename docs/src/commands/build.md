@@ -4,7 +4,7 @@ Build and push container images for kueue-operator components.
 
 ## Overview
 
-The `kueue-dev images build` command builds and pushes container images for the kueue-operator project. It supports building operator, operand (kueue), and must-gather components.
+The `kueue-dev images build` command builds and pushes container images for the kueue-operator project. It supports building operator, operand (kueue), must-gather, and bundle components.
 
 ## Usage
 
@@ -14,7 +14,7 @@ kueue-dev images build [OPTIONS] [COMPONENTS]...
 
 ### Arguments
 
-- `[COMPONENTS]...` - Components to build (operator, operand, must-gather)
+- `[COMPONENTS]...` - Components to build (operator, operand, must-gather, bundle)
   - If not specified, builds all components
 
 ### Options
@@ -29,12 +29,13 @@ kueue-dev images build [OPTIONS] [COMPONENTS]...
 - `operator` - The kueue-operator image
 - `operand` - The kueue (upstream) image
 - `must-gather` - The must-gather debugging image
+- `bundle` - The OLM bundle image
 
 ## Examples
 
 ### Build All Components
 
-Build all three components (operator, operand, must-gather):
+Build all four components (operator, operand, must-gather, bundle):
 
 ```bash
 kueue-dev images build
@@ -95,11 +96,24 @@ kueue-dev images build --related-images dev-images.json --parallel
 The images file is a JSON file that specifies the image tags to build:
 
 ```json
-{
-  "operator": "quay.io/myuser/kueue-operator:v0.1.0",
-  "operand": "quay.io/myuser/kueue:v0.6.0",
-  "must-gather": "quay.io/myuser/kueue-must-gather:v0.1.0"
-}
+[
+  {
+    "name": "operator",
+    "image": "quay.io/myuser/kueue-operator:v0.1.0"
+  },
+  {
+    "name": "operand",
+    "image": "quay.io/myuser/kueue:v0.6.0"
+  },
+  {
+    "name": "must-gather",
+    "image": "quay.io/myuser/kueue-must-gather:v0.1.0"
+  },
+  {
+    "name": "bundle",
+    "image": "quay.io/myuser/kueue-bundle:v0.1.0"
+  }
+]
 ```
 
 ## Container Runtime
@@ -119,6 +133,7 @@ For each component, the command:
    - **operator**: `Dockerfile` in project root
    - **operand**: `Dockerfile.kueue` in project root
    - **must-gather**: `must-gather/Dockerfile`
+   - **bundle**: `bundle.developer.Dockerfile` in project root
 5. Builds the image with the specified tag
 6. Pushes the image to the registry
 

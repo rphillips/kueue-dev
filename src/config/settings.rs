@@ -45,6 +45,16 @@ pub struct Defaults {
 
     #[serde(default = "default_images_file")]
     pub images_file: String,
+
+    /// Optional path to kueue-operator source directory.
+    /// If not set, the current working directory will be used.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kueue_operator_source_path: Option<String>,
+
+    /// Optional path where kind should save kubeconfig files.
+    /// If not set, kubeconfig will not be automatically saved to a file.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kubeconfig_path: Option<String>,
 }
 
 /// Color and theme settings
@@ -89,7 +99,7 @@ fn default_cluster_name() -> String {
 }
 
 fn default_cni_provider() -> String {
-    "calico".to_string()
+    "default".to_string()
 }
 
 fn default_images_file() -> String {
@@ -176,6 +186,8 @@ impl Default for Defaults {
             cluster_name: default_cluster_name(),
             cni_provider: default_cni_provider(),
             images_file: default_images_file(),
+            kueue_operator_source_path: None,
+            kubeconfig_path: None,
         }
     }
 }
@@ -288,6 +300,8 @@ impl Settings {
 cluster_name = "kueue-test"
 cni_provider = "calico"
 images_file = "related_images.json"
+# kueue_operator_source_path = "/path/to/kueue-operator"  # Optional: Path to kueue-operator source. Defaults to current directory.
+# kubeconfig_path = "kube.kubeconfig"  # Optional: Path where kind should save kubeconfig. If not set, kubeconfig won't be saved to file.
 
 [colors]
 enabled = true

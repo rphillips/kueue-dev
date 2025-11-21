@@ -24,6 +24,7 @@
             fd
             rust-bin.stable.latest.default
             mdbook
+            operator-sdk
           ];
 
           shellHook = ''

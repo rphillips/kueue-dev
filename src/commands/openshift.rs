@@ -1,7 +1,6 @@
 //! OpenShift deployment support
 
 use anyhow::{Context, Result};
-use std::env;
 use std::path::PathBuf;
 
 use crate::config::images::ImageConfig;
@@ -61,24 +60,21 @@ pub fn verify_connection() -> Result<()> {
 
 /// Deploy to OpenShift cluster
 pub fn deploy_openshift(images_file: String, skip_tests: bool) -> Result<()> {
+    // Ensure we're in the operator source directory
+    let source_path = crate::utils::ensure_operator_source_directory()?;
+
     crate::log_info!("Starting kueue-operator deployment on OpenShift cluster...");
 
     // Verify connection
     verify_connection()?;
 
-    // Get project root
-    let project_root = get_project_root()?;
-
     // Load image configuration
-    let images_path = if images_file.starts_with('/') {
-        PathBuf::from(images_file)
-    } else {
-        project_root.join(&images_file)
-    };
+    let images_path = PathBuf::from(images_file);
 
     // Always display images configuration (critical deployment info)
     eprintln!();
-    eprintln!("Using images from: {}", images_path.display());
+    eprintln!("Kueue source path: {}", source_path.display());
+    eprintln!("Using images from:  {}", images_path.display());
     eprintln!();
 
     let image_config = ImageConfig::load(&images_path)?;
@@ -100,10 +96,10 @@ pub fn deploy_openshift(images_file: String, skip_tests: bool) -> Result<()> {
     leaderworkerset::install(LEADERWORKERSET_VERSION, None)?;
 
     // Install CRDs
-    operator::install_crds(&project_root, None)?;
+    operator::install_crds(None)?;
 
     // Install operator
-    operator::install_operator(&project_root, &image_config, None)?;
+    operator::install_operator(&image_config, None)?;
 
     crate::log_info!("");
     crate::log_info!("==========================================");
@@ -127,7 +123,7 @@ pub fn deploy_openshift(images_file: String, skip_tests: bool) -> Result<()> {
     crate::log_info!("");
     crate::log_info!("To cleanup:");
     crate::log_info!("  kubectl delete namespace openshift-kueue-operator");
-    crate::log_info!("  kubectl delete -f {}/deploy/crd/", project_root.display());
+    crate::log_info!("  kubectl delete -f deploy/crd/");
     crate::log_info!("");
 
     Ok(())
@@ -147,22 +143,6 @@ fn get_current_user() -> Result<String> {
     let output = std::process::Command::new("oc").args(["whoami"]).output()?;
 
     Ok(String::from_utf8(output.stdout)?.trim().to_string())
-}
-
-/// Get project root directory
-fn get_project_root() -> Result<PathBuf> {
-    let current_dir = env::current_dir()?;
-
-    // Check if we're in kueue-dev directory
-    if current_dir.file_name().and_then(|n| n.to_str()) == Some("kueue-dev") {
-        // Go up one level to kueue-operator root
-        if let Some(parent) = current_dir.parent() {
-            return Ok(parent.to_path_buf());
-        }
-    }
-
-    // Otherwise use current directory
-    Ok(current_dir)
 }
 
 #[cfg(test)]

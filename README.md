@@ -45,11 +45,14 @@ kueue-dev check --olm
 ### Cluster Management ✅ WORKING
 
 ```bash
-# Create a kind cluster with Calico CNI
-kueue-dev cluster create --name my-cluster --cni calico
+# Create a kind cluster (Calico CNI by default, --kubeconfig required)
+kueue-dev cluster create --name my-cluster --kubeconfig kube.kubeconfig
 
-# Create a kind cluster with default CNI
-kueue-dev cluster create --name my-cluster --cni default
+# Create with default CNI (kindnet)
+kueue-dev cluster create --name my-cluster --cni default --kubeconfig kube.kubeconfig
+
+# Create using config file setting (if kubeconfig_path is set in config)
+kueue-dev cluster create --name my-cluster
 
 # Delete a kind cluster
 kueue-dev cluster delete --name my-cluster
@@ -60,6 +63,8 @@ kueue-dev cluster delete --name my-cluster --force
 # List kind clusters
 kueue-dev cluster list
 ```
+
+**Note:** The `--kubeconfig` flag is required unless `kubeconfig_path` is set in your configuration file. Calico CNI is the default.
 
 ### Deploy ✅ WORKING
 
@@ -241,6 +246,10 @@ Create `~/.config/kueue-dev/config.toml` or `.kueue-dev.toml` in your project:
 cluster_name = "kueue-test"
 cni_provider = "calico"
 images_file = "related_images.json"
+# Required for cluster create command
+kubeconfig_path = "kube.kubeconfig"
+# Optional: Path to kueue-operator source (defaults to current directory)
+kueue_operator_source_path = "/path/to/kueue-operator"
 
 [colors]
 enabled = true

@@ -42,13 +42,11 @@ pub fn run_tests(
     label_filter: Option<String>,
     kubeconfig: Option<PathBuf>,
 ) -> Result<()> {
-    let project_root = get_project_root()?;
-
     // Determine kubeconfig
     let kc = if let Some(path) = kubeconfig {
         path
     } else {
-        project_root.join("kube.kubeconfig")
+        crate::utils::operator_source_join("kube.kubeconfig")
     };
 
     if !kc.exists() {
@@ -65,20 +63,14 @@ pub fn run_tests(
     crate::log_info!("Using kubeconfig: {}", kc.display());
 
     // Install or check for ginkgo
-    let ginkgo_bin = ensure_ginkgo(&project_root)?;
+    let ginkgo_bin = ensure_ginkgo()?;
 
     // Load settings to get skip patterns
     let settings = Settings::load();
     let skip_patterns = &settings.tests.operator_skip_patterns;
 
     // Run tests
-    execute_ginkgo_tests(
-        &ginkgo_bin,
-        &project_root,
-        focus,
-        label_filter,
-        skip_patterns,
-    )?;
+    execute_ginkgo_tests(&ginkgo_bin, focus, label_filter, skip_patterns)?;
 
     Ok(())
 }
@@ -89,13 +81,11 @@ pub fn run_tests_with_retry(
     label_filter: Option<String>,
     kubeconfig: Option<PathBuf>,
 ) -> Result<()> {
-    let project_root = get_project_root()?;
-
     // Determine kubeconfig
     let kc = if let Some(path) = kubeconfig {
         path
     } else {
-        project_root.join("kube.kubeconfig")
+        crate::utils::operator_source_join("kube.kubeconfig")
     };
 
     if !kc.exists() {
@@ -111,7 +101,7 @@ pub fn run_tests_with_retry(
     env::set_var("KUBECONFIG", &kc);
 
     // Install or check for ginkgo
-    let ginkgo_bin = ensure_ginkgo(&project_root)?;
+    let ginkgo_bin = ensure_ginkgo()?;
 
     // Load settings to get skip patterns
     let settings = Settings::load();
@@ -127,7 +117,6 @@ pub fn run_tests_with_retry(
     loop {
         match execute_ginkgo_tests(
             &ginkgo_bin,
-            &project_root,
             focus.clone(),
             label_filter.clone(),
             skip_patterns,
@@ -157,7 +146,8 @@ pub fn run_tests_with_retry(
 
 /// Create kind cluster and run tests
 pub fn run_tests_kind(options: TestKindOptions) -> Result<()> {
-    let project_root = get_project_root()?;
+    // Ensure we're in the operator source directory
+    crate::utils::ensure_operator_source_directory()?;
 
     crate::log_info!("Creating kind cluster and running e2e tests...");
 
@@ -168,8 +158,22 @@ pub fn run_tests_kind(options: TestKindOptions) -> Result<()> {
     let cni_provider = kind::CniProvider::Calico;
     let cluster = kind::KindCluster::new(&options.cluster_name, cni_provider);
 
+    // For test runs, we always need to save kubeconfig
+    // Use default path if not specified in config
+    let kubeconfig_to_save = settings
+        .defaults
+        .kubeconfig_path
+        .clone()
+        .map(PathBuf::from)
+        .or_else(|| Some(crate::utils::operator_source_join("kube.kubeconfig")));
+
     // Create the cluster
-    let kubeconfig_path = cluster.create(&project_root)?;
+    let kubeconfig_path_opt = cluster.create_with_kubeconfig(kubeconfig_to_save)?;
+
+    // We need a kubeconfig for tests, so error if not saved
+    let kubeconfig_path = kubeconfig_path_opt.ok_or_else(|| {
+        anyhow::anyhow!("Kubeconfig was not saved. This should not happen in test run")
+    })?;
 
     // Set KUBECONFIG environment variable
     env::set_var("KUBECONFIG", &kubeconfig_path);
@@ -185,7 +189,7 @@ pub fn run_tests_kind(options: TestKindOptions) -> Result<()> {
     let images_path = if options.images_file.starts_with('/') {
         PathBuf::from(&options.images_file)
     } else {
-        project_root.join(&options.images_file)
+        crate::utils::operator_source_join(&options.images_file)
     };
 
     let image_config = ImageConfig::load(&images_path)?;
@@ -206,7 +210,7 @@ pub fn run_tests_kind(options: TestKindOptions) -> Result<()> {
     leaderworkerset::install(LEADERWORKERSET_VERSION, Some(&kubeconfig_path))?;
 
     // Install CRDs
-    operator::install_crds(&project_root, Some(&kubeconfig_path))?;
+    operator::install_crds(Some(&kubeconfig_path))?;
 
     // Build Kueue config if not skipping
     let kueue_config = if options.skip_kueue_cr {
@@ -222,7 +226,6 @@ pub fn run_tests_kind(options: TestKindOptions) -> Result<()> {
 
     // Install operator with optional Kueue CR
     operator::install_operator_with_config(
-        &project_root,
         &image_config,
         kueue_config.as_ref(),
         Some(&kubeconfig_path),
@@ -241,8 +244,8 @@ pub fn run_tests_kind(options: TestKindOptions) -> Result<()> {
 }
 
 /// Ensure ginkgo binary is available
-fn ensure_ginkgo(project_root: &Path) -> Result<PathBuf> {
-    let bin_dir = project_root.join("bin");
+fn ensure_ginkgo() -> Result<PathBuf> {
+    let bin_dir = crate::utils::operator_source_join("bin");
     let ginkgo_bin = bin_dir.join("ginkgo");
 
     if ginkgo_bin.exists() {
@@ -284,7 +287,6 @@ fn ensure_ginkgo(project_root: &Path) -> Result<PathBuf> {
 /// Execute ginkgo tests
 fn execute_ginkgo_tests(
     ginkgo_bin: &Path,
-    project_root: &Path,
     focus: Option<String>,
     label_filter: Option<String>,
     skip_patterns: &[String],
@@ -319,7 +321,6 @@ fn execute_ginkgo_tests(
     // Run ginkgo
     let status = Command::new(ginkgo_bin)
         .args(&args)
-        .current_dir(project_root)
         .status()
         .context("Failed to run ginkgo")?;
 
@@ -329,22 +330,6 @@ fn execute_ginkgo_tests(
 
     crate::log_info!("E2E tests passed successfully!");
     Ok(())
-}
-
-/// Get project root directory
-fn get_project_root() -> Result<PathBuf> {
-    let current_dir = env::current_dir()?;
-
-    // Check if we're in kueue-dev directory
-    if current_dir.file_name().and_then(|n| n.to_str()) == Some("kueue-dev") {
-        // Go up one level to kueue-operator root
-        if let Some(parent) = current_dir.parent() {
-            return Ok(parent.to_path_buf());
-        }
-    }
-
-    // Otherwise use current directory
-    Ok(current_dir)
 }
 
 /// Build KueueConfig from settings
@@ -664,10 +649,8 @@ pub fn test_upstream(
 ) -> Result<()> {
     crate::log_info!("Running upstream kueue tests...");
 
-    let project_root = get_project_root()?;
-
     // Get upstream kueue directory
-    let upstream_dir = project_root.join("upstream").join("kueue");
+    let upstream_dir = crate::utils::operator_source_join("upstream/kueue");
     let upstream_src_dir = upstream_dir.join("src");
 
     if !upstream_dir.exists() {
@@ -706,7 +689,7 @@ pub fn test_upstream(
     allow_privileged_access(kubeconfig.as_ref())?;
 
     // Ensure ginkgo is available
-    let ginkgo_bin = ensure_ginkgo(&upstream_src_dir)?;
+    let ginkgo_bin = ensure_ginkgo()?;
 
     // Load settings to get skip patterns
     let settings = Settings::load();

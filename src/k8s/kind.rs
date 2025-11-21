@@ -1,7 +1,7 @@
 //! Kind cluster management operations
 
 use anyhow::{anyhow, Context, Result};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::process::Command;
 use std::str::FromStr;
 
@@ -64,10 +64,16 @@ impl KindCluster {
         Ok(clusters.lines().any(|line| line.trim() == self.name))
     }
 
-    /// Create the kind cluster
-    pub fn create(&self, project_root: &Path) -> Result<PathBuf> {
+    /// Create the kind cluster with optional custom kubeconfig path
+    pub fn create(&self) -> Result<Option<PathBuf>> {
+        self.create_with_kubeconfig(None)
+    }
+
+    /// Create the kind cluster with custom kubeconfig path
+    /// Returns Some(PathBuf) if kubeconfig is saved, None otherwise
+    pub fn create_with_kubeconfig(&self, kubeconfig: Option<PathBuf>) -> Result<Option<PathBuf>> {
         crate::log_info!("Creating kind cluster '{}'...", self.name);
-        crate::log_info!("Cluster will have 1 control-plane node and 2 worker nodes");
+        crate::log_info!("Cluster will have 2 control-plane nodes and 2 worker nodes");
 
         if matches!(self.cni_provider, CniProvider::Calico) {
             crate::log_info!("CNI provider: calico");
@@ -85,7 +91,13 @@ impl KindCluster {
                 self.name
             ))? {
                 crate::log_info!("Using existing cluster");
-                return self.get_kubeconfig_path(project_root);
+                // Export kubeconfig only if path was provided
+                if kubeconfig.is_some() {
+                    let kc_path = self.export_kubeconfig_with_custom(kubeconfig)?;
+                    return Ok(Some(kc_path));
+                } else {
+                    return Ok(None);
+                }
             }
 
             crate::log_info!("Deleting existing cluster...");
@@ -122,10 +134,14 @@ impl KindCluster {
 
         crate::log_info!("Cluster '{}' created successfully", self.name);
 
-        // Export kubeconfig
-        let kubeconfig_path = self.export_kubeconfig(project_root)?;
-
-        Ok(kubeconfig_path)
+        // Export kubeconfig only if path was provided
+        if kubeconfig.is_some() {
+            let kubeconfig_path = self.export_kubeconfig_with_custom(kubeconfig)?;
+            Ok(Some(kubeconfig_path))
+        } else {
+            crate::log_info!("Kubeconfig not saved (no path specified)");
+            Ok(None)
+        }
     }
 
     /// Delete the kind cluster
@@ -165,26 +181,12 @@ impl KindCluster {
         Ok(clusters)
     }
 
-    /// Export kubeconfig to file
-    fn export_kubeconfig(&self, project_root: &Path) -> Result<PathBuf> {
-        let kubeconfig_path = project_root.join("kube.kubeconfig");
+    /// Export kubeconfig to file with optional custom path
+    fn export_kubeconfig_with_custom(&self, custom_path: Option<PathBuf>) -> Result<PathBuf> {
+        let kubeconfig_path =
+            custom_path.unwrap_or_else(|| crate::utils::operator_source_join("kube.kubeconfig"));
 
-        // Canonicalize to get absolute path
-        let absolute_path = kubeconfig_path.canonicalize().unwrap_or_else(|_| {
-            // If file doesn't exist yet, manually construct absolute path
-            std::env::current_dir()
-                .ok()
-                .and_then(|cwd| {
-                    if project_root.is_absolute() {
-                        Some(kubeconfig_path.clone())
-                    } else {
-                        Some(cwd.join(project_root).join("kube.kubeconfig"))
-                    }
-                })
-                .unwrap_or(kubeconfig_path.clone())
-        });
-
-        crate::log_info!("Exporting kubeconfig to {}...", absolute_path.display());
+        crate::log_info!("Exporting kubeconfig to {}...", kubeconfig_path.display());
 
         let output = Command::new("kind")
             .args(["get", "kubeconfig", "--name", &self.name])
@@ -210,18 +212,6 @@ impl KindCluster {
         Ok(final_path)
     }
 
-    /// Get kubeconfig path (export if needed)
-    fn get_kubeconfig_path(&self, project_root: &Path) -> Result<PathBuf> {
-        let kubeconfig_path = project_root.join("kube.kubeconfig");
-
-        if !kubeconfig_path.exists() {
-            return self.export_kubeconfig(project_root);
-        }
-
-        // Return canonicalized path
-        Ok(kubeconfig_path.canonicalize().unwrap_or(kubeconfig_path))
-    }
-
     /// Generate kind cluster config YAML
     fn generate_config(&self) -> String {
         let disable_cni = matches!(self.cni_provider, CniProvider::Calico);
@@ -234,6 +224,14 @@ networking:
   podSubnet: "10.244.0.0/16"
   serviceSubnet: "10.96.0.0/16"
 nodes:
+- role: control-plane
+  kubeadmConfigPatches:
+  - |
+    apiVersion: kubeadm.k8s.io/v1beta3
+    kind: ClusterConfiguration
+    apiServer:
+      extraArgs:
+        v: "4"
 - role: control-plane
   kubeadmConfigPatches:
   - |

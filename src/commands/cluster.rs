@@ -2,7 +2,6 @@
 
 use anyhow::Result;
 use std::env;
-use std::path::PathBuf;
 use std::str::FromStr;
 
 use crate::install::calico;
@@ -10,26 +9,42 @@ use crate::k8s::kind::{CniProvider, KindCluster};
 use crate::k8s::nodes;
 
 /// Handle cluster create command
-pub fn create(name: String, cni: String) -> Result<()> {
+pub fn create(name: String, cni: String, kubeconfig: Option<String>) -> Result<()> {
+    // Ensure we're in the operator source directory
+    crate::utils::ensure_operator_source_directory()?;
+
+    use crate::config::settings::Settings;
+    use std::path::PathBuf;
+
     crate::log_info!("Creating kind cluster: {}", name);
 
     let cni_provider = CniProvider::from_str(&cni)?;
     let cluster = KindCluster::new(name, cni_provider);
 
-    // Get project root (current directory or parent)
-    let project_root = get_project_root()?;
+    // Determine kubeconfig path from CLI arg or config - REQUIRED
+    let kubeconfig_path = if let Some(kc) = kubeconfig {
+        PathBuf::from(kc)
+    } else {
+        let settings = Settings::load();
+        settings.defaults.kubeconfig_path
+            .map(PathBuf::from)
+            .ok_or_else(|| anyhow::anyhow!(
+                "Kubeconfig path is required. Provide it via --kubeconfig flag or set 'kubeconfig_path' in config file"
+            ))?
+    };
 
-    // Create the cluster
-    let kubeconfig_path = cluster.create(&project_root)?;
+    // Create the cluster with kubeconfig
+    let saved_kubeconfig = cluster
+        .create_with_kubeconfig(Some(kubeconfig_path))?
+        .expect("Kubeconfig should always be saved when path is provided");
 
     // Set KUBECONFIG environment variable for this process
-    env::set_var("KUBECONFIG", &kubeconfig_path);
-
-    crate::log_info!("KUBECONFIG set to: {}", kubeconfig_path.display());
+    env::set_var("KUBECONFIG", &saved_kubeconfig);
+    crate::log_info!("KUBECONFIG set to: {}", saved_kubeconfig.display());
 
     // Install Calico if selected
     if matches!(cni_provider, CniProvider::Calico) {
-        calico::install(Some(&kubeconfig_path))?;
+        calico::install(Some(&saved_kubeconfig))?;
     } else {
         // Wait for nodes to be ready with default CNI
         crate::log_info!("Waiting for nodes to be ready with default CNI...");
@@ -38,12 +53,12 @@ pub fn create(name: String, cni: String) -> Result<()> {
             "condition=Ready",
             None,
             "180s",
-            Some(&kubeconfig_path),
+            Some(&saved_kubeconfig),
         )?;
     }
 
     // Label worker nodes
-    nodes::label_worker_nodes(Some(&kubeconfig_path))?;
+    nodes::label_worker_nodes(Some(&saved_kubeconfig))?;
 
     crate::log_info!("");
     crate::log_info!("==========================================");
@@ -51,10 +66,10 @@ pub fn create(name: String, cni: String) -> Result<()> {
     crate::log_info!("==========================================");
     crate::log_info!("");
     crate::log_info!("Cluster name: {}", cluster.name);
-    crate::log_info!("Kubeconfig: {}", kubeconfig_path.display());
+    crate::log_info!("Kubeconfig: {}", saved_kubeconfig.display());
     crate::log_info!("");
     crate::log_info!("To use this cluster, run:");
-    crate::log_info!("  export KUBECONFIG={}", kubeconfig_path.display());
+    crate::log_info!("  export KUBECONFIG={}", saved_kubeconfig.display());
     crate::log_info!("");
 
     Ok(())
@@ -106,22 +121,6 @@ pub fn list() -> Result<()> {
     }
 
     Ok(())
-}
-
-/// Get project root directory
-fn get_project_root() -> Result<PathBuf> {
-    let current_dir = env::current_dir()?;
-
-    // Check if we're in kueue-dev directory
-    if current_dir.file_name().and_then(|n| n.to_str()) == Some("kueue-dev") {
-        // Go up one level to kueue-operator root
-        if let Some(parent) = current_dir.parent() {
-            return Ok(parent.to_path_buf());
-        }
-    }
-
-    // Otherwise use current directory
-    Ok(current_dir)
 }
 
 #[cfg(test)]

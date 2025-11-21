@@ -17,7 +17,7 @@ kueue-dev images build [OPTIONS] [COMPONENTS]...
 ```
 
 **Arguments:**
-- `[COMPONENTS]...` - Components to build (operator, operand, must-gather)
+- `[COMPONENTS]...` - Components to build (operator, operand, must-gather, bundle)
   - If not specified, builds all components
 
 **Options:**
@@ -31,7 +31,10 @@ kueue-dev images build [OPTIONS] [COMPONENTS]...
 kueue-dev images build
 
 # Build specific components
-kueue-dev images build operator,operand
+kueue-dev images build operator operand
+
+# Build bundle only
+kueue-dev images build bundle
 
 # Build with custom images file
 kueue-dev images build --related-images dev-images.json
@@ -123,11 +126,24 @@ kueue-dev images load --name dev --related-images dev-images.json
 All image commands use a JSON configuration file to specify image tags:
 
 ```json
-{
-  "operator": "quay.io/myuser/kueue-operator:v0.1.0",
-  "operand": "quay.io/myuser/kueue:v0.6.0",
-  "must-gather": "quay.io/myuser/kueue-must-gather:v0.1.0"
-}
+[
+  {
+    "name": "operator",
+    "image": "quay.io/myuser/kueue-operator:v0.1.0"
+  },
+  {
+    "name": "operand",
+    "image": "quay.io/myuser/kueue:v0.6.0"
+  },
+  {
+    "name": "must-gather",
+    "image": "quay.io/myuser/kueue-must-gather:v0.1.0"
+  },
+  {
+    "name": "bundle",
+    "image": "quay.io/myuser/kueue-bundle:v0.1.0"
+  }
+]
 ```
 
 ### Default Location

@@ -56,6 +56,11 @@ impl ImageConfig {
         self.get("must-gather")
     }
 
+    /// Get bundle image
+    pub fn bundle(&self) -> Result<&str> {
+        self.get("bundle")
+    }
+
     /// List all images
     pub fn list(&self) -> Vec<(&str, &str)> {
         self.images
