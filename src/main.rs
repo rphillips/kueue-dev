@@ -548,6 +548,7 @@ fn handle_images_command(command: ImagesCommands) -> Result<()> {
             let path = PathBuf::from(&images_file);
             let config = ImageConfig::load(&path)?;
             let runtime = ContainerRuntime::detect()?;
+            log_info!("Using container runtime: {}", runtime);
 
             load_images_to_kind(&name, &config, &runtime, true)
         }

@@ -14,13 +14,11 @@ impl ContainerRuntime {
     pub fn detect() -> Result<Self> {
         // Check for docker first
         if which::which("docker").is_ok() {
-            crate::log_info!("Using container runtime: docker");
             return Ok(ContainerRuntime::Docker);
         }
 
         // Fall back to podman
         if which::which("podman").is_ok() {
-            crate::log_info!("Using container runtime: podman");
             return Ok(ContainerRuntime::Podman);
         }
 

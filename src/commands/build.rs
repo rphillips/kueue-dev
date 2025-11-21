@@ -146,12 +146,13 @@ fn build_parallel(
                     &images_file_path,
                 ) {
                     Ok(_) => {
-                        pb.finish_with_message(format!(
+                        pb.finish_and_clear();
+                        mp.println(format!(
                             "{} {} {}",
-                            "✓".bright_green().bold(),
+                            "✅".bright_green(),
                             component.bright_blue().bold(),
                             "Complete".bright_green()
-                        ));
+                        )).unwrap();
 
                         // Update completion counter and progress
                         let mut count = completed.lock().unwrap();
@@ -159,12 +160,13 @@ fn build_parallel(
                         send_progress_update(*count, total);
                     }
                     Err(e) => {
-                        pb.finish_with_message(format!(
+                        pb.finish_and_clear();
+                        mp.println(format!(
                             "{} {} {}",
                             "✗".bright_red().bold(),
                             component.bright_blue().bold(),
                             "Failed".bright_red()
-                        ));
+                        )).unwrap();
                         let mut errs = errors.lock().unwrap();
                         errs.push(format!("Failed to build {}: {}", component, e));
 
@@ -373,7 +375,6 @@ fn build_image(
     tag: &str,
     build_args: &[(String, String)],
 ) -> Result<()> {
-    use std::io::BufReader;
     use std::process::Stdio;
 
     let runtime_cmd = runtime.command();
@@ -391,18 +392,9 @@ fn build_image(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-    let mut child = cmd
-        .spawn()
+    let output = cmd
+        .output()
         .with_context(|| format!("Failed to execute {} build command", runtime_cmd))?;
-
-    // Stream output with rolling 5-line buffer
-    if let Some(stdout) = child.stdout.take() {
-        stream_output_with_rolling_buffer(BufReader::new(stdout), 5);
-    }
-
-    let output = child
-        .wait_with_output()
-        .with_context(|| format!("Failed to wait for {} build command", runtime_cmd))?;
 
     if !output.status.success() {
         // On error, always show stderr
@@ -419,7 +411,6 @@ fn build_image(
 
 /// Push a container image
 fn push_image(runtime: &ContainerRuntime, tag: &str) -> Result<()> {
-    use std::io::BufReader;
     use std::process::Stdio;
 
     let runtime_cmd = runtime.command();
@@ -429,18 +420,9 @@ fn push_image(runtime: &ContainerRuntime, tag: &str) -> Result<()> {
         .stdout(Stdio::piped())
         .stderr(Stdio::piped());
 
-    let mut child = cmd
-        .spawn()
+    let output = cmd
+        .output()
         .with_context(|| format!("Failed to execute {} push command", runtime_cmd))?;
-
-    // Stream output with rolling 5-line buffer
-    if let Some(stdout) = child.stdout.take() {
-        stream_output_with_rolling_buffer(BufReader::new(stdout), 5);
-    }
-
-    let output = child
-        .wait_with_output()
-        .with_context(|| format!("Failed to wait for {} push command", runtime_cmd))?;
 
     if !output.status.success() {
         // On error, always show stderr
@@ -453,47 +435,6 @@ fn push_image(runtime: &ContainerRuntime, tag: &str) -> Result<()> {
     }
 
     Ok(())
-}
-
-/// Stream output with a rolling buffer of N lines
-/// This continuously displays the last N lines of output, updating as new lines arrive
-fn stream_output_with_rolling_buffer<R: std::io::BufRead>(reader: R, buffer_size: usize) {
-    use std::collections::VecDeque;
-
-    let mut buffer: VecDeque<String> = VecDeque::with_capacity(buffer_size);
-    let mut lines_displayed = 0;
-
-    for line in reader.lines() {
-        if let Ok(line) = line {
-            // Add new line to buffer
-            if buffer.len() >= buffer_size {
-                buffer.pop_front();
-            }
-            buffer.push_back(line);
-
-            // Clear previous output
-            if lines_displayed > 0 {
-                // Move cursor up and clear lines
-                for _ in 0..lines_displayed {
-                    print!("\x1b[1A\x1b[2K"); // Move up one line and clear it
-                }
-            }
-
-            // Display current buffer
-            lines_displayed = buffer.len();
-            for line in &buffer {
-                println!("{}", line);
-            }
-
-            // Flush to ensure immediate display
-            let _ = std::io::stdout().flush();
-        }
-    }
-
-    // Final newline after streaming is complete
-    if lines_displayed > 0 {
-        println!();
-    }
 }
 
 /// Send OSC 9;4 progress update

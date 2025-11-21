@@ -31,7 +31,12 @@ pub fn label_worker_nodes(kubeconfig: Option<&Path>) -> Result<()> {
 
     let control_plane_nodes: std::collections::HashSet<String> = control_plane_nodes_output
         .lines()
-        .map(|line| line.trim().strip_prefix("node/").unwrap_or(line.trim()).to_string())
+        .map(|line| {
+            line.trim()
+                .strip_prefix("node/")
+                .unwrap_or(line.trim())
+                .to_string()
+        })
         .collect();
 
     let mut worker_nodes = Vec::new();

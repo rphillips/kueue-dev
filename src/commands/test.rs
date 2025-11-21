@@ -196,6 +196,7 @@ pub fn run_tests_kind(options: TestKindOptions) -> Result<()> {
 
     // Detect container runtime
     let runtime = ContainerRuntime::detect()?;
+    crate::log_info!("Using container runtime: {}", runtime);
 
     // Load images into kind cluster
     images::load_images_to_kind(&options.cluster_name, &image_config, &runtime, true)?;
