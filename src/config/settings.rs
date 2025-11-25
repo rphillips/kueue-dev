@@ -99,7 +99,7 @@ fn default_cluster_name() -> String {
 }
 
 fn default_cni_provider() -> String {
-    "default".to_string()
+    "calico".to_string()
 }
 
 fn default_images_file() -> String {
