@@ -35,7 +35,7 @@
           # Default build for current platform
           default = pkgs.rustPlatform.buildRustPackage {
             pname = "kueue-dev";
-            version = "0.5.5";
+            version = "0.5.6";
 
             src = ./.;
 
@@ -64,7 +64,7 @@
           # Static musl build for x86_64 Linux
           musl-static = pkgsMusl.pkgsStatic.rustPlatform.buildRustPackage {
             pname = "kueue-dev";
-            version = "0.5.1";
+            version = "0.5.6";
 
             src = ./.;
 
