@@ -105,7 +105,7 @@ enum ClusterCommands {
         name: String,
 
         /// CNI provider (default or calico)
-        #[arg(long, default_value = "default")]
+        #[arg(long, default_value = "calico")]
         cni: String,
 
         /// Path to save kubeconfig file (if not specified, kubeconfig won't be saved)
