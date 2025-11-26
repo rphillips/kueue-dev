@@ -3,6 +3,7 @@
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{generate, Shell};
+use kueue_dev::config::settings::Settings;
 use kueue_dev::utils::{CommonPrereqs, ContainerRuntime, Prerequisite};
 use kueue_dev::{log_error, log_info};
 use std::io;
@@ -105,8 +106,8 @@ enum ClusterCommands {
         name: String,
 
         /// CNI provider (default or calico)
-        #[arg(long, default_value = "calico")]
-        cni: String,
+        #[arg(long)]
+        cni: Option<String>,
 
         /// Path to save kubeconfig file (if not specified, kubeconfig won't be saved)
         #[arg(short, long)]
@@ -354,7 +355,11 @@ fn handle_cluster_command(command: ClusterCommands) -> Result<()> {
             name,
             cni,
             kubeconfig,
-        } => kueue_dev::commands::cluster::create(name, cni, kubeconfig),
+        } => {
+            let settings = Settings::load();
+            let cni = cni.unwrap_or(settings.defaults.cni_provider);
+            kueue_dev::commands::cluster::create(name, cni, kubeconfig)
+        }
         ClusterCommands::Delete { name, force } => {
             kueue_dev::commands::cluster::delete(name, force)
         }
