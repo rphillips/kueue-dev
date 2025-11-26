@@ -3,7 +3,10 @@
 
   inputs = {
     nixpkgs.url      = "github:NixOS/nixpkgs/nixpkgs-unstable";
-    rust-overlay.url = "github:oxalica/rust-overlay";
+    rust-overlay = {
+      url = "github:oxalica/rust-overlay";
+      inputs.nixpkgs.follows = "nixpkgs";
+    };
     flake-utils.url  = "github:numtide/flake-utils";
   };
 
@@ -32,7 +35,7 @@
           # Default build for current platform
           default = pkgs.rustPlatform.buildRustPackage {
             pname = "kueue-dev";
-            version = "0.5.4";
+            version = "0.5.5";
 
             src = ./.;
 
