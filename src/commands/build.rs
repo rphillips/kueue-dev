@@ -477,6 +477,5 @@ mod tests {
     #[test]
     fn test_build_module() {
         // Basic compile test
-        assert!(true);
     }
 }

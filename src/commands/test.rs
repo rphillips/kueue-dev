@@ -739,6 +739,5 @@ mod tests {
     #[test]
     fn test_test_module() {
         // Basic compile test
-        assert!(true);
     }
 }

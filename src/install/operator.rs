@@ -292,11 +292,8 @@ fn apply_operator_manifests(temp_dir: &Path, kubeconfig: Option<&Path>) -> Resul
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_operator_module() {
         // Basic compile test
-        assert!(true);
     }
 }

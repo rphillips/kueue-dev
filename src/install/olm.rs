@@ -255,15 +255,15 @@ fn cleanup_and_retry(bundle_image: &str, kubeconfig: Option<&Path>) -> Result<bo
 
     if retry_output.status.success() {
         crate::log_info!("Bundle installation successful after cleanup");
-        return Ok(true);
+        Ok(true)
     } else {
         let retry_stderr = String::from_utf8_lossy(&retry_output.stderr);
         let retry_stdout = String::from_utf8_lossy(&retry_output.stdout);
-        return Err(anyhow::anyhow!(
+        Err(anyhow::anyhow!(
             "operator-sdk run bundle failed after cleanup:\n{}\n{}",
             retry_stdout,
             retry_stderr
-        ));
+        ))
     }
 }
 
@@ -310,11 +310,8 @@ metadata:
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_olm_module() {
         // Basic compile test
-        assert!(true);
     }
 }

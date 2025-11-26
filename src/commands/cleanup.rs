@@ -141,10 +141,8 @@ fn cleanup_priority_classes(kubeconfig: Option<&Path>) -> Result<()> {
             // Delete PriorityClasses
             for pc in &priority_classes {
                 let pc = pc.trim();
-                if !pc.is_empty() {
-                    if kubectl::run_kubectl(&["delete", pc], kubeconfig).is_ok() {
-                        crate::log_info!("Successfully deleted {}", pc);
-                    }
+                if !pc.is_empty() && kubectl::run_kubectl(&["delete", pc], kubeconfig).is_ok() {
+                    crate::log_info!("Successfully deleted {}", pc);
                 }
             }
         }
@@ -269,10 +267,8 @@ fn cleanup_test_namespaces(kubeconfig: Option<&Path>) -> Result<()> {
             // Delete namespaces
             for ns in &test_namespaces {
                 let ns = ns.trim();
-                if !ns.is_empty() {
-                    if kubectl::run_kubectl(&["delete", ns], kubeconfig).is_ok() {
-                        crate::log_info!("Successfully deleted {}", ns);
-                    }
+                if !ns.is_empty() && kubectl::run_kubectl(&["delete", ns], kubeconfig).is_ok() {
+                    crate::log_info!("Successfully deleted {}", ns);
                 }
             }
         }
@@ -283,11 +279,8 @@ fn cleanup_test_namespaces(kubeconfig: Option<&Path>) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_cleanup_module() {
         // Basic compile test
-        assert!(true);
     }
 }

@@ -47,11 +47,8 @@ pub fn wait_for_enter(message: &str) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_prompt_module_exists() {
         // Basic compile test - actual prompts can't be tested in CI
-        assert!(true);
     }
 }

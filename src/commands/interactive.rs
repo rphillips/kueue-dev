@@ -257,11 +257,8 @@ fn kubectl_shell(kubeconfig: Option<&Path>) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_interactive_module() {
         // Basic compile test
-        assert!(true);
     }
 }

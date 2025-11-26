@@ -4,16 +4,11 @@ use anyhow::Result;
 use serde::{Deserialize, Serialize};
 
 /// Kueue management state
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Default)]
 pub enum ManagementState {
+    #[default]
     Managed,
     Unmanaged,
-}
-
-impl Default for ManagementState {
-    fn default() -> Self {
-        Self::Managed
-    }
 }
 
 /// Kueue framework integrations

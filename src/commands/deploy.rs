@@ -370,11 +370,8 @@ fn build_kueue_config_from_settings(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_deploy_module() {
         // Basic compile test
-        assert!(true);
     }
 }

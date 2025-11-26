@@ -203,11 +203,8 @@ spec:
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_prometheus_module() {
         // Basic compile test
-        assert!(true);
     }
 }

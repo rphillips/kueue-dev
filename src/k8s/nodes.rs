@@ -79,11 +79,8 @@ pub fn label_worker_nodes(kubeconfig: Option<&Path>) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_node_module_exists() {
         // Basic compile test
-        assert!(true);
     }
 }

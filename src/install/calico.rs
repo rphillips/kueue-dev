@@ -129,7 +129,6 @@ mod tests {
 
     #[test]
     fn test_calico_version() {
-        assert!(!CALICO_VERSION.is_empty());
         assert!(CALICO_VERSION.starts_with('v'));
     }
 }

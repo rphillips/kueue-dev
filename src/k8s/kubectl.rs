@@ -344,7 +344,6 @@ mod tests {
     #[test]
     fn test_kubectl_module_exists() {
         // Basic compile test
-        assert!(true);
     }
 
     #[test]

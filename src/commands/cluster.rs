@@ -87,14 +87,14 @@ pub fn delete(name: String, force: bool) -> Result<()> {
     }
 
     // Skip confirmation if force flag is set
-    if !force {
-        if !crate::utils::confirm(&format!(
+    if !force
+        && !crate::utils::confirm(&format!(
             "Are you sure you want to delete cluster '{}'?",
             name
-        ))? {
-            crate::log_info!("Deletion cancelled");
-            return Ok(());
-        }
+        ))?
+    {
+        crate::log_info!("Deletion cancelled");
+        return Ok(());
     }
 
     cluster.delete()?;
@@ -125,11 +125,8 @@ pub fn list() -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_cluster_module_exists() {
         // Basic compile test
-        assert!(true);
     }
 }

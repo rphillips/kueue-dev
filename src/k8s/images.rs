@@ -65,11 +65,8 @@ pub fn load_images_to_kind(
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_images_module() {
         // Basic compile test
-        assert!(true);
     }
 }

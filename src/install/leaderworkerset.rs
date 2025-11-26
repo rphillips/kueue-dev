@@ -51,11 +51,8 @@ pub fn install(version: &str, kubeconfig: Option<&Path>) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_leaderworkerset_module() {
         // Basic compile test
-        assert!(true);
     }
 }

@@ -147,11 +147,8 @@ fn get_current_user() -> Result<String> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_openshift_module() {
         // Basic compile test
-        assert!(true);
     }
 }
