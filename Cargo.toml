@@ -5,6 +5,7 @@ edition = "2021"
 authors = ["Kueue Contributors"]
 description = "Development CLI tool for kueue-operator"
 license = "Apache-2.0"
+publish = false
 
 [[bin]]
 name = "kueue-dev"
