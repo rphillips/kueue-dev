@@ -50,7 +50,7 @@ Set default values for command-line flags:
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `cluster_name` | string | `"kueue-test"` | Default cluster name for commands |
-| `cni_provider` | string | `"calico"` | CNI to use: `"calico"` or `"default"` |
+| `cni_provider` | string | `"calico"` | CNI to use: `"calico"` or `"default"` (calico is recommended) |
 | `images_file` | string | `"related_images.json"` | Default images configuration file |
 
 **Example:**
