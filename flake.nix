@@ -13,6 +13,9 @@
   outputs = { self, nixpkgs, rust-overlay, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
+        cargoToml = builtins.fromTOML (builtins.readFile ./Cargo.toml);
+        version = cargoToml.package.version;
+
         overlays = [ (import rust-overlay) ];
         pkgs = import nixpkgs {
           inherit system overlays;
@@ -35,7 +38,7 @@
           # Default build for current platform
           default = pkgs.rustPlatform.buildRustPackage {
             pname = "kueue-dev";
-            version = "0.5.6";
+            inherit version;
 
             src = ./.;
 
@@ -61,7 +64,7 @@
           # Static musl build for x86_64 Linux
           musl-static = pkgsMusl.pkgsStatic.rustPlatform.buildRustPackage {
             pname = "kueue-dev";
-            version = "0.5.6";
+            inherit version;
 
             src = ./.;
 
