@@ -98,12 +98,12 @@ pub fn deploy_kind(options: DeployKindOptions) -> Result<()> {
     env::set_var("KUBECONFIG", &kubeconfig_path);
     crate::log_info!("Using kubeconfig: {}", kubeconfig_path.display());
 
+    // Check for and uninstall existing operator installation
+    crate::install::olm::uninstall_operator_if_exists(Some(&kubeconfig_path))?;
+
     // Detect container runtime
     let runtime = ContainerRuntime::detect()?;
     crate::log_info!("Using container runtime: {}", runtime);
-
-    // Load images into kind cluster
-    images::load_images_to_kind(&options.cluster_name, &image_config, &runtime, true)?;
 
     // Delete leader election lease to avoid delays from previous deployments
     // This needs to happen before any operator deployment to ensure quick reconciliation
@@ -124,20 +124,58 @@ pub fn deploy_kind(options: DeployKindOptions) -> Result<()> {
     if options.use_bundle {
         crate::log_info!("Deploying via OLM bundle...");
 
-        // Install dependencies required by Kueue
-        crate::log_info!("Installing dependencies...");
+        // Start loading images in background while we install dependencies
+        crate::log_info!("Starting image load in background...");
+        let image_load_handle = images::load_images_to_kind_background(
+            options.cluster_name.clone(),
+            image_config.clone(),
+            runtime,
+            true,
+        );
 
-        // Install cert-manager
-        cert_manager::install(CERT_MANAGER_VERSION, Some(&kubeconfig_path))?;
+        // Install dependencies in parallel while images are loading
+        crate::log_info!("Installing dependencies in parallel...");
 
-        // Install JobSet
-        jobset::install(JOBSET_VERSION, Some(&kubeconfig_path))?;
+        let kubeconfig_path_clone1 = kubeconfig_path.clone();
+        let kubeconfig_path_clone2 = kubeconfig_path.clone();
+        let kubeconfig_path_clone3 = kubeconfig_path.clone();
+        let kubeconfig_path_clone4 = kubeconfig_path.clone();
 
-        // Install LeaderWorkerSet
-        leaderworkerset::install(LEADERWORKERSET_VERSION, Some(&kubeconfig_path))?;
+        let cert_manager_handle = std::thread::spawn(move || {
+            cert_manager::install(CERT_MANAGER_VERSION, Some(&kubeconfig_path_clone1))
+        });
 
-        // Install OLM
-        crate::install::olm::install_olm(Some(&kubeconfig_path))?;
+        let jobset_handle = std::thread::spawn(move || {
+            jobset::install(JOBSET_VERSION, Some(&kubeconfig_path_clone2))
+        });
+
+        let lws_handle = std::thread::spawn(move || {
+            leaderworkerset::install(LEADERWORKERSET_VERSION, Some(&kubeconfig_path_clone3))
+        });
+
+        let olm_handle = std::thread::spawn(move || {
+            crate::install::olm::install_olm(Some(&kubeconfig_path_clone4))
+        });
+
+        // Wait for all parallel tasks to complete
+        cert_manager_handle
+            .join()
+            .map_err(|e| anyhow::anyhow!("cert-manager thread panicked: {:?}", e))??;
+        jobset_handle
+            .join()
+            .map_err(|e| anyhow::anyhow!("jobset thread panicked: {:?}", e))??;
+        lws_handle
+            .join()
+            .map_err(|e| anyhow::anyhow!("leaderworkerset thread panicked: {:?}", e))??;
+        olm_handle
+            .join()
+            .map_err(|e| anyhow::anyhow!("olm thread panicked: {:?}", e))??;
+
+        // Wait for images to finish loading
+        crate::log_info!("Waiting for images to finish loading...");
+        image_load_handle
+            .join()
+            .map_err(|e| anyhow::anyhow!("image load thread panicked: {:?}", e))??;
 
         // Get bundle image from config
         let bundle_image = image_config.bundle()?;
@@ -182,14 +220,50 @@ pub fn deploy_kind(options: DeployKindOptions) -> Result<()> {
     } else {
         crate::log_info!("Deploying via direct manifests (--no-bundle flag provided)...");
 
-        // Install cert-manager
-        cert_manager::install(CERT_MANAGER_VERSION, Some(&kubeconfig_path))?;
+        // Start loading images in background while we install dependencies
+        crate::log_info!("Starting image load in background...");
+        let image_load_handle = images::load_images_to_kind_background(
+            options.cluster_name.clone(),
+            image_config.clone(),
+            runtime,
+            true,
+        );
 
-        // Install JobSet
-        jobset::install(JOBSET_VERSION, Some(&kubeconfig_path))?;
+        // Install dependencies in parallel while images are loading
+        crate::log_info!("Installing dependencies in parallel...");
 
-        // Install LeaderWorkerSet
-        leaderworkerset::install(LEADERWORKERSET_VERSION, Some(&kubeconfig_path))?;
+        let kubeconfig_path_clone1 = kubeconfig_path.clone();
+        let kubeconfig_path_clone2 = kubeconfig_path.clone();
+        let kubeconfig_path_clone3 = kubeconfig_path.clone();
+
+        let cert_manager_handle = std::thread::spawn(move || {
+            cert_manager::install(CERT_MANAGER_VERSION, Some(&kubeconfig_path_clone1))
+        });
+
+        let jobset_handle = std::thread::spawn(move || {
+            jobset::install(JOBSET_VERSION, Some(&kubeconfig_path_clone2))
+        });
+
+        let lws_handle = std::thread::spawn(move || {
+            leaderworkerset::install(LEADERWORKERSET_VERSION, Some(&kubeconfig_path_clone3))
+        });
+
+        // Wait for all parallel tasks to complete
+        cert_manager_handle
+            .join()
+            .map_err(|e| anyhow::anyhow!("cert-manager thread panicked: {:?}", e))??;
+        jobset_handle
+            .join()
+            .map_err(|e| anyhow::anyhow!("jobset thread panicked: {:?}", e))??;
+        lws_handle
+            .join()
+            .map_err(|e| anyhow::anyhow!("leaderworkerset thread panicked: {:?}", e))??;
+
+        // Wait for images to finish loading
+        crate::log_info!("Waiting for images to finish loading...");
+        image_load_handle
+            .join()
+            .map_err(|e| anyhow::anyhow!("image load thread panicked: {:?}", e))??;
 
         // Install CRDs
         operator::install_crds(Some(&kubeconfig_path))?;

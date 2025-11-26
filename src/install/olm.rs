@@ -5,6 +5,152 @@ use anyhow::{Context, Result};
 use std::path::Path;
 use std::process::Command;
 
+/// Check if the kueue-operator is already installed
+pub fn is_operator_installed(kubeconfig: Option<&Path>) -> bool {
+    // Check if the operator namespace exists
+    let namespace_check = kubectl::run_kubectl_output(
+        &["get", "namespace", "openshift-kueue-operator"],
+        kubeconfig,
+    );
+
+    if namespace_check.is_err() {
+        return false;
+    }
+
+    // Check if the operator deployment or catalog source exists
+    let deployment_check = kubectl::run_kubectl_output(
+        &[
+            "get",
+            "deployment",
+            "openshift-kueue-operator",
+            "-n",
+            "openshift-kueue-operator",
+        ],
+        kubeconfig,
+    );
+
+    let catalog_check = kubectl::run_kubectl_output(
+        &[
+            "get",
+            "catalogsource",
+            "kueue-operator-catalog",
+            "-n",
+            "openshift-kueue-operator",
+        ],
+        kubeconfig,
+    );
+
+    deployment_check.is_ok() || catalog_check.is_ok()
+}
+
+/// Uninstall the kueue-operator if it's installed via OLM cleanup
+pub fn uninstall_operator_if_exists(kubeconfig: Option<&Path>) -> Result<()> {
+    if !is_operator_installed(kubeconfig) {
+        crate::log_info!("No existing operator installation detected");
+        return Ok(());
+    }
+
+    crate::log_info!("Existing operator installation detected, uninstalling via OLM...");
+
+    // Use operator-sdk cleanup to properly remove OLM-managed resources
+    if which::which("operator-sdk").is_err() {
+        crate::log_warn!("operator-sdk not found, skipping cleanup");
+        crate::log_warn!(
+            "Install operator-sdk from: https://sdk.operatorframework.io/docs/installation/"
+        );
+        return Ok(());
+    }
+
+    // Run operator-sdk cleanup first to remove the operator deployment
+    crate::log_info!("Running operator-sdk cleanup kueue-operator...");
+    let mut cleanup_cmd = Command::new("operator-sdk");
+    if let Some(kc) = kubeconfig {
+        cleanup_cmd.env("KUBECONFIG", kc);
+    }
+
+    cleanup_cmd.args([
+        "cleanup",
+        "kueue-operator",
+        "-n",
+        "openshift-kueue-operator",
+    ]);
+
+    let cleanup_output = cleanup_cmd
+        .output()
+        .context("Failed to run operator-sdk cleanup")?;
+
+    if cleanup_output.status.success() {
+        crate::log_info!("operator-sdk cleanup completed successfully");
+    } else {
+        let stderr = String::from_utf8_lossy(&cleanup_output.stderr);
+        let stdout = String::from_utf8_lossy(&cleanup_output.stdout);
+        crate::log_warn!("operator-sdk cleanup output:\n{}\n{}", stdout, stderr);
+    }
+
+    // Wait for cleanup to complete
+    crate::log_info!("Waiting for operator resources to be removed...");
+    std::thread::sleep(std::time::Duration::from_secs(5));
+
+    // Verify cleanup - check if deployment is gone
+    for i in 0..12 {
+        // Try for up to 60 seconds
+        let deployment_check = kubectl::run_kubectl_output(
+            &[
+                "get",
+                "deployment",
+                "openshift-kueue-operator",
+                "-n",
+                "openshift-kueue-operator",
+            ],
+            kubeconfig,
+        );
+
+        if deployment_check.is_err() {
+            crate::log_info!("Operator deployment removed successfully");
+            break;
+        }
+
+        if i < 11 {
+            crate::log_info!("Waiting for operator deployment to be removed...");
+            std::thread::sleep(std::time::Duration::from_secs(5));
+        } else {
+            crate::log_warn!("Operator deployment still exists after cleanup timeout");
+        }
+    }
+
+    // Delete the namespace to clean up any remaining resources
+    crate::log_info!("Removing operator namespace...");
+    kubectl::run_kubectl(
+        &[
+            "delete",
+            "namespace",
+            "openshift-kueue-operator",
+            "--ignore-not-found",
+            "--timeout=60s",
+        ],
+        kubeconfig,
+    )
+    .ok();
+
+    // Delete any remaining Kueue CRs as final cleanup
+    crate::log_info!("Cleaning up any remaining Kueue CRs...");
+    kubectl::run_kubectl(
+        &[
+            "delete",
+            "kueue",
+            "--all",
+            "--all-namespaces",
+            "--timeout=30s",
+            "--ignore-not-found",
+        ],
+        kubeconfig,
+    )
+    .ok();
+
+    crate::log_info!("Operator uninstall complete");
+    Ok(())
+}
+
 /// Check if OLM is already installed
 pub fn is_olm_installed(kubeconfig: Option<&Path>) -> bool {
     // Check if the olm namespace exists and has the expected deployments

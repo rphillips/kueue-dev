@@ -3,6 +3,7 @@
 use crate::config::images::ImageConfig;
 use crate::utils::ContainerRuntime;
 use anyhow::{Context, Result};
+use std::thread::{self, JoinHandle};
 
 /// Load images into kind cluster
 pub fn load_images_to_kind(
@@ -61,6 +62,19 @@ pub fn load_images_to_kind(
 
     crate::log_info!("All images loaded successfully into kind cluster");
     Ok(())
+}
+
+/// Load images into kind cluster in background thread
+/// Returns a JoinHandle that can be awaited to ensure images are loaded
+pub fn load_images_to_kind_background(
+    cluster_name: String,
+    image_config: ImageConfig,
+    runtime: ContainerRuntime,
+    pull_if_missing: bool,
+) -> JoinHandle<Result<()>> {
+    thread::spawn(move || {
+        load_images_to_kind(&cluster_name, &image_config, &runtime, pull_if_missing)
+    })
 }
 
 #[cfg(test)]
