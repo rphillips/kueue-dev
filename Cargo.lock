@@ -1243,7 +1243,7 @@ dependencies = [
 
 [[package]]
 name = "kueue-dev"
-version = "0.5.8"
+version = "0.5.9"
 dependencies = [
  "anyhow",
  "clap",
