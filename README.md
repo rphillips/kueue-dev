@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/rphillips/kueue-dev/actions/workflows/ci.yml/badge.svg)](https://github.com/rphillips/kueue-dev/actions/workflows/ci.yml)
 [![Release](https://github.com/rphillips/kueue-dev/actions/workflows/release.yml/badge.svg)](https://github.com/rphillips/kueue-dev/actions/workflows/release.yml)
-[![Deploy Docs](https://github.com/rphillips/kueue-dev/actions/workflows/deploy-docs.yml/badge.svg)](https://github.com/rphillips/kueue-dev/actions/workflows/deploy-docs.yml)
+[![Docs](https://github.com/rphillips/kueue-dev/actions/workflows/deploy-docs.yml/badge.svg)](https://github.com/rphillips/kueue-dev/actions/workflows/deploy-docs.yml)
 
 Development CLI tool for kueue-operator.
 

@@ -1,12 +1,8 @@
-name: Deploy mdBook to GitHub Pages
+name: Docs
 
 on:
-  push:
-    branches:
-      - main
-    paths:
-      - 'docs/**'
-      - '.github/workflows/deploy-docs.yml'
+  release:
+    types: [created]
   workflow_dispatch:
 
 permissions:
