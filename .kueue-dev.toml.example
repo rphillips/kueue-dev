@@ -11,7 +11,7 @@
 cluster_name = "kueue-test"
 
 # CNI provider to use: "calico" or "default"
-cni_provider = "default"
+cni_provider = "calico"
 
 # Default images configuration file
 images_file = "related_images.json"
