@@ -13,6 +13,9 @@
         overlays = [ (import rust-overlay) ];
         pkgs = import nixpkgs {
           inherit system overlays;
+          config = {
+            allowUnfree = true;
+          };
         };
 
         # Cross-compilation setup for x86_64 musl
@@ -29,7 +32,7 @@
           # Default build for current platform
           default = pkgs.rustPlatform.buildRustPackage {
             pname = "kueue-dev";
-            version = "0.5.1";
+            version = "0.5.4";
 
             src = ./.;
 
@@ -43,10 +46,10 @@
 
             buildInputs = with pkgs; [
               openssl
-            ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin [
-              pkgs.darwin.apple_sdk.frameworks.Security
-              pkgs.darwin.apple_sdk.frameworks.SystemConfiguration
-            ];
+            ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin (with pkgs.darwin.apple_sdk.frameworks; [
+              Security
+              SystemConfiguration
+            ]);
 
             meta = with pkgs.lib; {
               description = "Development CLI tool for kueue-operator";
@@ -95,10 +98,10 @@
             rust-bin.stable.latest.default
             mdbook
             operator-sdk
-          ] ++ lib.optionals stdenv.isDarwin [
-            darwin.apple_sdk.frameworks.Security
-            darwin.apple_sdk.frameworks.SystemConfiguration
-          ];
+          ] ++ lib.optionals stdenv.isDarwin (with darwin.apple_sdk.frameworks; [
+            Security
+            SystemConfiguration
+          ]);
 
           shellHook = ''
             alias ls=eza

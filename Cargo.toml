@@ -1,6 +1,6 @@
 [package]
 name = "kueue-dev"
-version = "0.5.3"
+version = "0.5.4"
 edition = "2021"
 authors = ["Kueue Contributors"]
 description = "Development CLI tool for kueue-operator"
