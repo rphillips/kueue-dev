@@ -65,19 +65,7 @@ enum Commands {
     },
 
     /// Check prerequisites
-    Check {
-        /// Check for kind cluster tools
-        #[arg(long)]
-        kind: bool,
-
-        /// Check for OpenShift tools
-        #[arg(long)]
-        openshift: bool,
-
-        /// Check for OLM tools
-        #[arg(long)]
-        olm: bool,
-    },
+    Check,
 
     /// Interactive debugging menu
     Interactive {
@@ -338,11 +326,7 @@ fn main() -> Result<()> {
         Commands::Test { command } => handle_test_command(command),
         Commands::Cleanup { kubeconfig } => handle_cleanup_command(kubeconfig),
         Commands::Images { command } => handle_images_command(command),
-        Commands::Check {
-            kind,
-            openshift,
-            olm,
-        } => handle_check_command(kind, openshift, olm),
+        Commands::Check => handle_check_command(),
         Commands::Interactive { kubeconfig } => handle_interactive_command(kubeconfig),
         Commands::Completion { shell } => handle_completion_command(shell),
         Commands::Version => handle_version_command(),
@@ -560,8 +544,9 @@ fn handle_images_command(command: ImagesCommands) -> Result<()> {
     }
 }
 
-fn handle_check_command(kind: bool, openshift: bool, olm: bool) -> Result<()> {
-    log_info!("Checking prerequisites...");
+fn handle_check_command() -> Result<()> {
+    log_info!("Checking all prerequisites...");
+    log_info!("");
 
     // Create owned prerequisite objects
     let kubectl = CommonPrereqs::kubectl();
@@ -570,36 +555,66 @@ fn handle_check_command(kind: bool, openshift: bool, olm: bool) -> Result<()> {
     let oc = CommonPrereqs::oc();
     let operator_sdk = CommonPrereqs::operator_sdk();
 
-    // Build vector of references
-    let mut prereqs: Vec<&dyn Prerequisite> = vec![&kubectl];
-
-    if kind {
-        prereqs.push(&kind_prereq);
-        prereqs.push(&go);
-    }
-
-    if openshift {
-        prereqs.push(&oc);
-    }
-
-    if olm {
-        prereqs.push(&operator_sdk);
-    }
+    // Build vector of all prerequisites
+    let prereqs: Vec<&dyn Prerequisite> = vec![&kubectl, &kind_prereq, &go, &oc, &operator_sdk];
 
     // Check container runtime
-    let runtime = ContainerRuntime::detect()?;
-    log_info!("Container runtime: {}", runtime);
+    let container_runtime_available = match ContainerRuntime::detect() {
+        Ok(runtime) => {
+            log_info!("✓ Container runtime: {}", runtime);
+            true
+        }
+        Err(_) => {
+            log_error!("✗ Container runtime: Neither docker nor podman found");
+            false
+        }
+    };
+
+    log_info!("");
 
     // Check all prerequisites
-    match CommonPrereqs::check_all(&prereqs) {
-        Ok(_) => {
-            log_info!("✓ All prerequisites satisfied!");
-            Ok(())
+    let (found, missing) = CommonPrereqs::check_all(&prereqs);
+
+    // Display found tools
+    if !found.is_empty() {
+        log_info!("Found tools:");
+        for tool in &found {
+            log_info!("  ✓ {}", tool);
         }
-        Err(e) => {
-            log_error!("{}", e);
-            std::process::exit(1);
+        log_info!("");
+    }
+
+    // Display missing tools
+    if !missing.is_empty() {
+        log_error!("Missing tools:");
+        for (name, hint) in &missing {
+            log_error!("  ✗ {} - {}", name, hint);
         }
+        log_info!("");
+    }
+
+    // Summary
+    log_info!("==========================================");
+    log_info!("Summary:");
+    log_info!("  Found: {}", found.len());
+    log_info!("  Missing: {}", missing.len());
+
+    if !container_runtime_available {
+        log_info!("  Container runtime: Missing");
+    } else {
+        log_info!("  Container runtime: OK");
+    }
+
+    log_info!("==========================================");
+    log_info!("");
+
+    // Exit with error if anything is missing
+    if !missing.is_empty() || !container_runtime_available {
+        log_error!("Some prerequisites are missing. Please install them before proceeding.");
+        std::process::exit(1);
+    } else {
+        log_info!("✓ All prerequisites satisfied!");
+        Ok(())
     }
 }
 

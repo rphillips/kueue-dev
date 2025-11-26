@@ -98,34 +98,29 @@ impl CommonPrereqs {
         )
     }
 
-    /// Check all prerequisites and return list of missing tools
-    pub fn check_all(prereqs: &[&dyn Prerequisite]) -> Result<Vec<String>> {
-        crate::log_info!("Checking prerequisites...");
-
+    /// Check all prerequisites and return detailed results
+    /// Returns (found_tools, missing_tools)
+    pub fn check_all(prereqs: &[&dyn Prerequisite]) -> (Vec<String>, Vec<(String, String)>) {
+        let mut found = Vec::new();
         let mut missing = Vec::new();
 
         for prereq in prereqs {
-            if let Err(e) = prereq.check() {
-                match e {
+            match prereq.check() {
+                Ok(_) => {
+                    found.push(prereq.name().to_string());
+                }
+                Err(e) => match e {
                     PrereqError::NotFound { name, hint } => {
-                        missing.push(format!("{} ({})", name, hint));
+                        missing.push((name, hint));
                     }
                     PrereqError::CheckFailed { name, source } => {
                         crate::log_warn!("Failed to check {}: {}", name, source);
                     }
-                }
+                },
             }
         }
 
-        if !missing.is_empty() {
-            return Err(anyhow!(
-                "Missing required tools:\n  - {}",
-                missing.join("\n  - ")
-            ));
-        }
-
-        crate::log_info!("All prerequisites satisfied");
-        Ok(missing)
+        (found, missing)
     }
 }
 
