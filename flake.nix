@@ -49,10 +49,7 @@
 
             buildInputs = with pkgs; [
               openssl
-            ] ++ pkgs.lib.optionals pkgs.stdenv.isDarwin (with pkgs.darwin.apple_sdk.frameworks; [
-              Security
-              SystemConfiguration
-            ]);
+            ];
 
             meta = with pkgs.lib; {
               description = "Development CLI tool for kueue-operator";
@@ -101,10 +98,7 @@
             rust-bin.stable.latest.default
             mdbook
             operator-sdk
-          ] ++ lib.optionals stdenv.isDarwin (with darwin.apple_sdk.frameworks; [
-            Security
-            SystemConfiguration
-          ]);
+          ];
 
           shellHook = ''
             alias ls=eza
