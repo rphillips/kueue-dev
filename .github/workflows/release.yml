@@ -5,6 +5,9 @@ on:
     types: [created]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build-linux-musl:
     name: Build Linux x86_64 (musl static)
@@ -27,23 +30,23 @@ jobs:
           mkdir -p artifacts
           cp result/bin/kueue-dev artifacts/kueue-dev-linux-x86_64-musl
           chmod +x artifacts/kueue-dev-linux-x86_64-musl
+          sha256sum artifacts/kueue-dev-linux-x86_64-musl | awk '{print $1}' > artifacts/kueue-dev-linux-x86_64-musl.sha256
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: kueue-dev-linux-x86_64-musl
-          path: artifacts/kueue-dev-linux-x86_64-musl
+          path: |
+            artifacts/kueue-dev-linux-x86_64-musl
+            artifacts/kueue-dev-linux-x86_64-musl.sha256
 
       - name: Upload to release
         if: github.event_name == 'release'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./artifacts/kueue-dev-linux-x86_64-musl
-          asset_name: kueue-dev-linux-x86_64-musl
-          asset_content_type: application/octet-stream
+        run: |
+          gh release upload ${{ github.event.release.tag_name }} \
+            ./artifacts/kueue-dev-linux-x86_64-musl \
+            ./artifacts/kueue-dev-linux-x86_64-musl.sha256 \
+            --clobber
 
   build-macos-arm:
     name: Build macOS ARM64 (Apple Silicon)
@@ -66,54 +69,21 @@ jobs:
           mkdir -p artifacts
           cp result/bin/kueue-dev artifacts/kueue-dev-macos-aarch64
           chmod +x artifacts/kueue-dev-macos-aarch64
+          shasum -a 256 artifacts/kueue-dev-macos-aarch64 | awk '{print $1}' > artifacts/kueue-dev-macos-aarch64.sha256
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: kueue-dev-macos-aarch64
-          path: artifacts/kueue-dev-macos-aarch64
+          path: |
+            artifacts/kueue-dev-macos-aarch64
+            artifacts/kueue-dev-macos-aarch64.sha256
 
       - name: Upload to release
         if: github.event_name == 'release'
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./artifacts/kueue-dev-macos-aarch64
-          asset_name: kueue-dev-macos-aarch64
-          asset_content_type: application/octet-stream
-
-  checksums:
-    name: Generate checksums
-    needs: [build-linux-musl, build-macos-arm]
-    runs-on: ubuntu-latest
-    if: github.event_name == 'release'
-    steps:
-      - name: Download Linux artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: kueue-dev-linux-x86_64-musl
-          path: ./artifacts
-
-      - name: Download macOS artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: kueue-dev-macos-aarch64
-          path: ./artifacts
-
-      - name: Generate checksums
         run: |
-          cd artifacts
-          sha256sum * > SHA256SUMS
-          cat SHA256SUMS
+          gh release upload ${{ github.event.release.tag_name }} \
+            ./artifacts/kueue-dev-macos-aarch64 \
+            ./artifacts/kueue-dev-macos-aarch64.sha256 \
+            --clobber
 
-      - name: Upload checksums to release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ github.event.release.upload_url }}
-          asset_path: ./artifacts/SHA256SUMS
-          asset_name: SHA256SUMS
-          asset_content_type: text/plain
