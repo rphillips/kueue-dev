@@ -10,7 +10,7 @@ Development CLI tool for kueue-operator.
 
 ## Overview
 
-`kueue-dev` is a Rust-based CLI tool that replaces the shell scripts in the kueue-operator project. It provides a unified interface for managing kind clusters, deploying the operator, and running tests.
+`kueue-dev` is a Rust-based CLI tool eases the development workflow for the Kueue operator. It provides a unified interface for managing kind clusters, deploying the operator, and running tests.
 
 ## Building
 
