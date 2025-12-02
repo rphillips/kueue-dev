@@ -223,10 +223,10 @@ pub fn enhance_error(err: anyhow::Error) -> KueueDevError {
 /// Extract cluster name from error message
 fn extract_cluster_name(msg: &str) -> Option<&str> {
     // Try to extract cluster name from common error patterns
-    if let Some(start) = msg.find("cluster '") {
-        if let Some(end) = msg[start + 9..].find('\'') {
-            return Some(&msg[start + 9..start + 9 + end]);
-        }
+    if let Some(start) = msg.find("cluster '")
+        && let Some(end) = msg[start + 9..].find('\'')
+    {
+        return Some(&msg[start + 9..start + 9 + end]);
     }
     None
 }

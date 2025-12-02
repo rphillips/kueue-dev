@@ -294,12 +294,10 @@ fn extract_version_from_log(line: &str) -> Option<String> {
         let after = &line[pos..];
         if let Some(start) = after.find(':') {
             let value_start = &after[start + 1..].trim_start();
-            if let Some(quote_start) = value_start.find('"') {
-                if let Some(quote_end) = value_start[quote_start + 1..].find('"') {
-                    return Some(
-                        value_start[quote_start + 1..quote_start + 1 + quote_end].to_string(),
-                    );
-                }
+            if let Some(quote_start) = value_start.find('"')
+                && let Some(quote_end) = value_start[quote_start + 1..].find('"')
+            {
+                return Some(value_start[quote_start + 1..quote_start + 1 + quote_end].to_string());
             }
         }
     }
@@ -318,10 +316,10 @@ fn extract_version_from_log(line: &str) -> Option<String> {
     if let Some(pos) = line.to_lowercase().find("version") {
         let after_version = &line[pos..];
         // Try to extract quoted version
-        if let Some(start) = after_version.find('"') {
-            if let Some(end) = after_version[start + 1..].find('"') {
-                return Some(after_version[start + 1..start + 1 + end].to_string());
-            }
+        if let Some(start) = after_version.find('"')
+            && let Some(end) = after_version[start + 1..].find('"')
+        {
+            return Some(after_version[start + 1..start + 1 + end].to_string());
         }
         // Try to extract version after colon or equals
         if let Some(start) = after_version.find(':').or_else(|| after_version.find('=')) {

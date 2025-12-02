@@ -107,10 +107,7 @@ impl ImageLoadProgress {
         let multi = create_multi_progress();
         let bars: Vec<ProgressBar> = images
             .iter()
-            .map(|img| {
-                let pb = multi.add(create_spinner(&format!("Loading {}", img)));
-                pb
-            })
+            .map(|img| multi.add(create_spinner(&format!("Loading {}", img))))
             .collect();
 
         Self { multi, bars }
