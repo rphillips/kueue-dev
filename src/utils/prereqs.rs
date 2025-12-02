@@ -1,6 +1,6 @@
 //! Prerequisite checking system for required tools
 
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use thiserror::Error;
 
 #[derive(Error, Debug)]

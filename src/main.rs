@@ -2,12 +2,12 @@
 
 use anyhow::Result;
 use clap::{CommandFactory, Parser, Subcommand};
-use clap_complete::{generate, Shell};
+use clap_complete::{Shell, generate};
 use kueue_dev::config::settings::Settings;
 use kueue_dev::utils::{CommonPrereqs, ContainerRuntime, Prerequisite};
 use kueue_dev::{log_error, log_info};
 use std::io;
-use tracing_subscriber::{fmt, prelude::*, EnvFilter};
+use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
 #[derive(Parser)]
 #[command(name = "kueue-dev")]
@@ -301,10 +301,14 @@ fn main() -> Result<()> {
         2 => "trace", // -vv: trace level
         _ => "trace", // -vvv: trace level
     };
-    std::env::set_var("RUST_LOG", log_level);
 
     // Initialize tracing subscriber with custom formatting
     // Format matches the old style: [LEVEL] message
+    // Use EnvFilter::try_new to set the log level without modifying environment variables
+    let env_filter = EnvFilter::try_from_default_env()
+        .or_else(|_| EnvFilter::try_new(log_level))
+        .unwrap_or_else(|_| EnvFilter::new("info"));
+
     tracing_subscriber::registry()
         .with(
             fmt::layer()
@@ -314,7 +318,7 @@ fn main() -> Result<()> {
                 .without_time()
                 .with_writer(std::io::stderr),
         )
-        .with(EnvFilter::from_default_env())
+        .with(env_filter)
         .init();
 
     // Set the operator source path from CLI if provided
@@ -412,7 +416,10 @@ fn handle_deploy_command(command: DeployCommands) -> Result<()> {
             log_info!("==========================================");
             log_info!("");
             log_info!("To view operator logs:");
-            log_info!("  kubectl logs -n openshift-kueue-operator -l name=openshift-kueue-operator -f --kubeconfig={}", kubeconfig.display());
+            log_info!(
+                "  kubectl logs -n openshift-kueue-operator -l name=openshift-kueue-operator -f --kubeconfig={}",
+                kubeconfig.display()
+            );
             log_info!("");
 
             Ok(())

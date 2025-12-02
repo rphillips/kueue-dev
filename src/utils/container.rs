@@ -1,6 +1,6 @@
 //! Container runtime detection and operations (Docker/Podman)
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use std::process::Command;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

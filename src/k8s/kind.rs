@@ -1,6 +1,6 @@
 //! Kind cluster management operations
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use std::path::PathBuf;
 use std::process::Command;
 use std::str::FromStr;

@@ -1,7 +1,6 @@
 //! Test command implementations
 
 use anyhow::{Context, Result};
-use std::env;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -58,8 +57,6 @@ pub fn run_tests(
 
     // Canonicalize to get absolute path
     let kc = kc.canonicalize().unwrap_or(kc);
-
-    env::set_var("KUBECONFIG", &kc);
     crate::log_info!("Using kubeconfig: {}", kc.display());
 
     // Install or check for ginkgo
@@ -70,7 +67,7 @@ pub fn run_tests(
     let skip_patterns = &settings.tests.operator_skip_patterns;
 
     // Run tests
-    execute_ginkgo_tests(&ginkgo_bin, focus, label_filter, skip_patterns)?;
+    execute_ginkgo_tests(&ginkgo_bin, focus, label_filter, skip_patterns, Some(&kc))?;
 
     Ok(())
 }
@@ -98,8 +95,6 @@ pub fn run_tests_with_retry(
     // Canonicalize to get absolute path
     let kc = kc.canonicalize().unwrap_or(kc);
 
-    env::set_var("KUBECONFIG", &kc);
-
     // Install or check for ginkgo
     let ginkgo_bin = ensure_ginkgo()?;
 
@@ -120,6 +115,7 @@ pub fn run_tests_with_retry(
             focus.clone(),
             label_filter.clone(),
             skip_patterns,
+            Some(&kc),
         ) {
             Ok(_) => {
                 crate::log_info!("");
@@ -175,8 +171,6 @@ pub fn run_tests_kind(options: TestKindOptions) -> Result<()> {
         anyhow::anyhow!("Kubeconfig was not saved. This should not happen in test run")
     })?;
 
-    // Set KUBECONFIG environment variable
-    env::set_var("KUBECONFIG", &kubeconfig_path);
     crate::log_info!("Kubeconfig: {}", kubeconfig_path.display());
 
     // Install Calico
@@ -291,6 +285,7 @@ fn execute_ginkgo_tests(
     focus: Option<String>,
     label_filter: Option<String>,
     skip_patterns: &[String],
+    kubeconfig: Option<&Path>,
 ) -> Result<()> {
     crate::log_info!("Running e2e tests...");
 
@@ -320,10 +315,14 @@ fn execute_ginkgo_tests(
     args.push("./test/e2e/...");
 
     // Run ginkgo
-    let status = Command::new(ginkgo_bin)
-        .args(&args)
-        .status()
-        .context("Failed to run ginkgo")?;
+    let mut cmd = Command::new(ginkgo_bin);
+    cmd.args(&args);
+
+    if let Some(kc) = kubeconfig {
+        cmd.env("KUBECONFIG", kc);
+    }
+
+    let status = cmd.status().context("Failed to run ginkgo")?;
 
     if !status.success() {
         return Err(anyhow::anyhow!("E2E tests failed"));

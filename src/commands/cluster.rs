@@ -1,7 +1,6 @@
 //! Cluster command implementations
 
 use anyhow::Result;
-use std::env;
 use std::str::FromStr;
 
 use crate::install::calico;
@@ -37,10 +36,6 @@ pub fn create(name: String, cni: String, kubeconfig: Option<String>) -> Result<(
     let saved_kubeconfig = cluster
         .create_with_kubeconfig(Some(kubeconfig_path))?
         .expect("Kubeconfig should always be saved when path is provided");
-
-    // Set KUBECONFIG environment variable for this process
-    env::set_var("KUBECONFIG", &saved_kubeconfig);
-    crate::log_info!("KUBECONFIG set to: {}", saved_kubeconfig.display());
 
     // Install Calico if selected
     if matches!(cni_provider, CniProvider::Calico) {

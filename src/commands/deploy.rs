@@ -1,7 +1,6 @@
 //! Deploy command implementations
 
 use anyhow::{Context, Result};
-use std::env;
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -94,8 +93,6 @@ pub fn deploy_kind(options: DeployKindOptions) -> Result<()> {
 
     // Canonicalize to get absolute path
     let kubeconfig_path = kubeconfig_path.canonicalize().unwrap_or(kubeconfig_path);
-
-    env::set_var("KUBECONFIG", &kubeconfig_path);
     crate::log_info!("Using kubeconfig: {}", kubeconfig_path.display());
 
     // Check for and uninstall existing operator installation
@@ -368,9 +365,6 @@ pub fn deploy_kind_full(
     let kubeconfig_path = kubeconfig_path_opt.ok_or_else(|| {
         anyhow::anyhow!("Kubeconfig was not saved. This should not happen in deploy_kind_full")
     })?;
-
-    // Set KUBECONFIG environment variable
-    env::set_var("KUBECONFIG", &kubeconfig_path);
 
     // Install Calico if selected
     if matches!(cni_provider, kind::CniProvider::Calico) {
