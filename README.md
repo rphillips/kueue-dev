@@ -4,6 +4,8 @@
 [![Release](https://github.com/rphillips/kueue-dev/actions/workflows/release.yml/badge.svg)](https://github.com/rphillips/kueue-dev/actions/workflows/release.yml)
 [![Docs](https://github.com/rphillips/kueue-dev/actions/workflows/deploy-docs.yml/badge.svg)](https://github.com/rphillips/kueue-dev/actions/workflows/deploy-docs.yml)
 
+> **Download pre-built binaries:** Pre-compiled binaries for Linux and macOS are available in the [Releases](https://github.com/rphillips/kueue-dev/releases) section.
+
 Development CLI tool for kueue-operator.
 
 **Documentation:** https://trolocsis.com/kueue-dev/
