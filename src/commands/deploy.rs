@@ -11,7 +11,7 @@ use crate::install::{calico, cert_manager, jobset, leaderworkerset, operator};
 use crate::k8s::{images, kind, kubectl, nodes};
 use crate::utils::ContainerRuntime;
 
-const CERT_MANAGER_VERSION: &str = "v1.13.3";
+const CERT_MANAGER_VERSION: &str = "v1.18.0";
 const JOBSET_VERSION: &str = "v0.10.1";
 const LEADERWORKERSET_VERSION: &str = "v0.7.0";
 
