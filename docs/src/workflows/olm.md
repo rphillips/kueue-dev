@@ -19,7 +19,7 @@ kueue-dev cluster create --name olm-test
 ### 2. Deploy via OLM
 
 ```bash
-kueue-dev deploy olm --bundle quay.io/my-org/kueue-bundle:v1.0.0 --name olm-test
+kueue-dev deploy operator olm --bundle quay.io/my-org/kueue-bundle:v1.0.0 --name olm-test
 ```
 
 This automatically:

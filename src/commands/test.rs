@@ -490,6 +490,7 @@ fn allow_privileged_access(kubeconfig: Option<&PathBuf>) -> Result<()> {
 }
 
 /// Execute upstream ginkgo tests
+#[allow(clippy::too_many_arguments)]
 fn execute_upstream_ginkgo_tests(
     ginkgo_bin: &Path,
     upstream_src_dir: &Path,
@@ -498,6 +499,7 @@ fn execute_upstream_ginkgo_tests(
     skip_patterns: &[String],
     target: &str,
     kubeconfig: Option<&PathBuf>,
+    operator_installed: bool,
 ) -> Result<()> {
     crate::log_info!("Running upstream e2e tests...");
 
@@ -542,8 +544,13 @@ fn execute_upstream_ginkgo_tests(
     let mut cmd = Command::new(ginkgo_bin);
     cmd.args(&args)
         .current_dir(upstream_src_dir)
-        .env("KUEUE_NAMESPACE", "openshift-kueue-operator")
         .env("E2E_KIND_VERSION", ""); // Empty for OCP tests
+
+    // Only set KUEUE_NAMESPACE for operator deployments
+    // Upstream kueue uses kueue-system by default which is what the tests expect
+    if operator_installed {
+        cmd.env("KUEUE_NAMESPACE", "openshift-kueue-operator");
+    }
 
     if let Some(kc) = kubeconfig {
         cmd.env("KUBECONFIG", kc);
@@ -572,8 +579,34 @@ fn is_kind_cluster(kubeconfig: Option<&Path>) -> Result<bool> {
     Ok(context.starts_with("kind-"))
 }
 
-/// Scale down operator deployment to 0 replicas
+/// Check if the kueue operator is installed (vs upstream kueue deployment)
+fn is_operator_installed(kubeconfig: Option<&Path>) -> bool {
+    // Check if the operator namespace exists
+    let ns_check = kubectl::run_kubectl_output(
+        &[
+            "get",
+            "namespace",
+            "openshift-kueue-operator",
+            "--ignore-not-found",
+        ],
+        kubeconfig,
+    );
+
+    matches!(ns_check, Ok(output) if !output.trim().is_empty())
+}
+
+/// Scale down operator deployment to 0 replicas (if it exists)
 fn scale_down_operator(kubeconfig: Option<&Path>) -> Result<()> {
+    if !is_operator_installed(kubeconfig) {
+        crate::log_info!(
+            "Operator namespace 'openshift-kueue-operator' not found - skipping scale down"
+        );
+        crate::log_info!(
+            "(This is expected when using 'deploy upstream' instead of 'deploy operator')"
+        );
+        return Ok(());
+    }
+
     crate::log_info!("Scaling down operator deployment to 0 replicas...");
     kubectl::run_kubectl(
         &[
@@ -663,14 +696,26 @@ pub fn test_upstream(
         ));
     }
 
-    // Apply patches
-    apply_git_patches(&upstream_dir)?;
+    // Check if the operator is installed (vs upstream kueue deployment)
+    let operator_installed = is_operator_installed(kubeconfig.as_deref());
+
+    if operator_installed {
+        crate::log_info!("Detected operator deployment - applying operator-specific setup");
+
+        // Apply patches (only needed for operator deployment)
+        apply_git_patches(&upstream_dir)?;
+
+        // Allow privileged access via OpenShift SCCs (only for operator deployment)
+        allow_privileged_access(kubeconfig.as_ref())?;
+    } else {
+        crate::log_info!("Detected upstream kueue deployment - skipping operator-specific setup");
+    }
 
     // Check if running on Kind and perform necessary setup
     if is_kind_cluster(kubeconfig.as_deref())? {
         crate::log_info!("Detected Kind cluster - performing setup for upstream tests");
 
-        // Scale down the operator deployment
+        // Scale down the operator deployment (if present)
         scale_down_operator(kubeconfig.as_deref())?;
 
         // Delete NetworkPolicies
@@ -680,9 +725,6 @@ pub fn test_upstream(
     // Label worker nodes
     crate::log_info!("Labeling worker nodes for e2e tests...");
     nodes::label_worker_nodes(kubeconfig.as_deref())?;
-
-    // Allow privileged access
-    allow_privileged_access(kubeconfig.as_ref())?;
 
     // Ensure ginkgo is available
     let ginkgo_bin = ensure_ginkgo()?;
@@ -700,6 +742,7 @@ pub fn test_upstream(
         skip_patterns,
         &target,
         kubeconfig.as_ref(),
+        operator_installed,
     )?;
 
     Ok(())

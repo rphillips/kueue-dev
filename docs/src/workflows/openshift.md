@@ -19,7 +19,7 @@ kueue-dev check --openshift
 ### 2. Deploy to OpenShift
 
 ```bash
-kueue-dev deploy openshift --related-images related_images.json
+kueue-dev deploy operator openshift --related-images related_images.json
 ```
 
 ### 3. Run Tests

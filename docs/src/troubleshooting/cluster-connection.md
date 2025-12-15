@@ -51,5 +51,5 @@ echo $KUBECONFIG
 kubectl config use-context kind-<cluster-name>
 
 # Or let kueue-dev handle it
-kueue-dev deploy kind --name <cluster-name> --related-images <file>
+kueue-dev deploy operator kind --name <cluster-name> --related-images <file>
 ```

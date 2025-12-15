@@ -98,6 +98,19 @@ impl CommonPrereqs {
         )
     }
 
+    /// Get kustomize prerequisite
+    pub fn kustomize() -> CommandPrereq {
+        CommandPrereq::new(
+            "kustomize",
+            "Install from: https://kubectl.docs.kubernetes.io/installation/kustomize/",
+        )
+    }
+
+    /// Get helm prerequisite
+    pub fn helm() -> CommandPrereq {
+        CommandPrereq::new("helm", "Install from: https://helm.sh/docs/intro/install/")
+    }
+
     /// Check all prerequisites and return detailed results
     /// Returns (found_tools, missing_tools)
     pub fn check_all(prereqs: &[&dyn Prerequisite]) -> (Vec<String>, Vec<(String, String)>) {

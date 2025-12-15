@@ -26,7 +26,7 @@ jobs:
 
           # Create cluster and deploy
           kueue-dev cluster create --name ci-test
-          kueue-dev deploy kind --name ci-test --related-images ci-images.json
+          kueue-dev deploy operator kind --name ci-test --related-images ci-images.json
 
           # Run tests
           kueue-dev test run

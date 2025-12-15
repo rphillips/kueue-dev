@@ -31,7 +31,7 @@ pub fn create(name: String, cni: String, kubeconfig: Option<String>) -> Result<(
             .defaults
             .kubeconfig_path
             .as_ref()
-            .map(|p| PathBuf::from(p))
+            .map(PathBuf::from)
             .ok_or_else(|| {
                 anyhow::anyhow!(
                     "Kubeconfig path is required. Provide it via --kubeconfig flag or set 'kubeconfig_path' in config file"

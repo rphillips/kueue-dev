@@ -33,7 +33,7 @@ Test a single feature quickly:
 
 ```bash
 kueue-dev cluster create --name quick-test
-kueue-dev deploy kind --name quick-test --related-images dev-images.json
+kueue-dev deploy operator kind --name quick-test --related-images dev-images.json
 kueue-dev test run --focus "MyFeature"
 kueue-dev cleanup
 kueue-dev cluster delete --name quick-test
@@ -51,7 +51,7 @@ kueue-dev cluster create --name dev
 while true; do
   # Make code changes...
   kueue-dev cleanup
-  kueue-dev deploy kind --name dev --related-images dev-images.json
+  kueue-dev deploy operator kind --name dev --related-images dev-images.json
   kueue-dev test run --focus "MyFeature"
   read -p "Continue? (y/n) " -n 1 -r
   echo
@@ -68,7 +68,7 @@ Run complete test suite before merging:
 
 ```bash
 kueue-dev cluster create --name full-test --cni calico
-kueue-dev deploy kind --name full-test --related-images related_images.json
+kueue-dev deploy operator kind --name full-test --related-images related_images.json
 kueue-dev test run  # All tests
 kueue-dev cleanup
 kueue-dev cluster delete --name full-test

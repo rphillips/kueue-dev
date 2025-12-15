@@ -4,182 +4,110 @@ Documentation for `kueue-dev deploy` commands.
 
 ## Overview
 
-The `kueue-dev deploy` commands provide streamlined deployment workflows for kueue-operator to different environments.
-
-## Subcommands
-
-### deploy kind
-
-Deploy kueue-operator to a kind cluster using OLM bundle (default) or direct manifests.
+The `kueue-dev deploy` commands provide streamlined deployment workflows for both the kueue-operator and upstream Kueue.
 
 ```bash
-kueue-dev deploy kind [OPTIONS]
+kueue-dev deploy <SUBCOMMAND>
 ```
 
-**Options:**
-- `-n, --name <NAME>` - Cluster name (default: `kueue-test`)
-- `--related-images <FILE>` - Path to related images JSON file
-- `-k, --kubeconfig <FILE>` - Path to kubeconfig file
-- `--skip-tests` - Skip tests after deployment
-- `--skip-kueue-cr` - Skip creating Kueue CR (only deploy operator)
-- `--kueue-frameworks <FRAMEWORKS>` - Comma-separated list of frameworks to enable
-- `--kueue-namespace <NAMESPACE>` - Kueue CR namespace (default: openshift-kueue-operator)
-- `--no-bundle` - Deploy without OLM bundle (use direct manifests)
-- `--cert-manager-version <VERSION>` - Override cert-manager version (e.g., v1.18.0)
-- `--jobset-version <VERSION>` - Override JobSet version (e.g., v0.10.1)
-- `--leaderworkerset-version <VERSION>` - Override LeaderWorkerSet version (e.g., v0.7.0)
-- `--prometheus-version <VERSION>` - Override Prometheus Operator version (e.g., v0.82.2)
+## Deployment Options
 
-**Examples:**
+### Operator Deployment
+
+Deploy the **kueue-operator** (OpenShift operator) which manages Kueue as an operand.
 
 ```bash
-# Deploy with OLM bundle (default)
-kueue-dev deploy kind
-
-# Deploy without bundle (direct manifests)
-kueue-dev deploy kind --no-bundle
-
-# Deploy to specific cluster with custom images
-kueue-dev deploy kind --name dev --related-images dev-images.json
-
-# Deploy without creating Kueue CR
-kueue-dev deploy kind --skip-kueue-cr
-
-# Deploy with specific frameworks enabled
-kueue-dev deploy kind --kueue-frameworks BatchJob,Pod,JobSet
-
-# Deploy with custom dependency versions
-kueue-dev deploy kind --cert-manager-version v1.17.0 --jobset-version v0.9.0
+kueue-dev deploy operator <kind|olm|openshift>
 ```
 
-**Deployment Methods:**
+Best for:
+- OpenShift environments
+- Production deployments
+- Managed Kueue lifecycle
 
-By default, deployment uses OLM bundle which:
-- Installs OLM if not already present
-- Deploys operator via `operator-sdk run bundle`
-- Provides production-like deployment experience
-- Requires `operator-sdk` binary
+See [Operator Deployment](./deploy-operator.md) for full documentation.
 
-Use `--no-bundle` flag to deploy via direct manifests which:
-- Installs cert-manager, JobSet, LeaderWorkerSet, and Prometheus Operator
-- Applies CRDs and operator manifests directly
-- Faster for development iteration
-- Does not require `operator-sdk`
-
-**Dependencies Installed:**
-
-Both deployment methods install these dependencies in parallel:
-- cert-manager (for webhook certificates)
-- JobSet (for JobSet workloads)
-- LeaderWorkerSet (for LeaderWorkerSet workloads)
-- Prometheus Operator (for metrics collection)
-
-**Version Information:**
-
-After deployment, the tool displays:
-- Operator version (extracted from pod logs)
-- Kueue controller-manager version (if running)
-
-### deploy olm
-
-Deploy via OLM bundle with explicit bundle image.
+**Quick Examples:**
 
 ```bash
-kueue-dev deploy olm [OPTIONS]
+# Deploy operator to kind cluster
+kueue-dev deploy operator kind
+
+# Deploy operator without OLM
+kueue-dev deploy operator kind --no-bundle
+
+# Deploy to OpenShift
+kueue-dev deploy operator openshift
 ```
 
-**Options:**
-- `-b, --bundle <IMAGE>` - Bundle image
-- `-n, --name <NAME>` - Cluster name (default: `kueue-test`)
+### Upstream Deployment
 
-**Examples:**
+Deploy **upstream Kueue** directly from source using kustomize or helm.
 
 ```bash
-# Deploy with specific bundle image
-kueue-dev deploy olm --bundle quay.io/myuser/kueue-bundle:latest
-
-# Deploy to specific cluster
-kueue-dev deploy olm --bundle quay.io/myuser/kueue-bundle:v0.1.0 --name dev
+kueue-dev deploy upstream <kustomize|helm>
 ```
 
-### deploy openshift
+Best for:
+- Testing upstream Kueue changes
+- Vanilla Kubernetes environments
+- Development without the operator
 
-Deploy to OpenShift cluster.
+See [Upstream Deployment](./deploy-upstream.md) for full documentation.
+
+**Quick Examples:**
 
 ```bash
-kueue-dev deploy openshift [OPTIONS]
+# Deploy with kustomize
+kueue-dev deploy upstream kustomize --upstream-source /path/to/kueue/src
+
+# Deploy with helm
+kueue-dev deploy upstream helm --upstream-source /path/to/kueue/src
+
+# Build image and deploy
+kueue-dev deploy upstream kustomize --upstream-source /path/to/kueue/src --build-image
 ```
 
-**Options:**
-- `--related-images <FILE>` - Path to related images JSON file
-- `--skip-tests` - Skip tests after deployment
+## Command Structure
 
-**Examples:**
-
-```bash
-# Deploy to current OpenShift context
-kueue-dev deploy openshift
-
-# Deploy with custom images
-kueue-dev deploy openshift --related-images prod-images.json
+```
+kueue-dev deploy
+├── operator              # Deploy kueue-operator
+│   ├── kind              # Deploy to kind cluster
+│   ├── olm               # Deploy via OLM bundle
+│   └── openshift         # Deploy to OpenShift
+└── upstream              # Deploy upstream Kueue
+    ├── kustomize         # Deploy using kustomize
+    └── helm              # Deploy using helm
 ```
 
-## Common Workflows
+## Comparison
 
-### Quick Local Development
+| Feature | Operator Deployment | Upstream Deployment |
+|---------|--------------------|--------------------|
+| Target | kueue-operator | Upstream Kueue |
+| Method | OLM bundle or manifests | Kustomize or Helm |
+| Image source | Pre-built images | Pre-built or build from source |
+| Use case | OpenShift, production | Development, testing |
+| Kueue lifecycle | Managed by operator | Direct deployment |
+| Dependencies | cert-manager, JobSet, LWS, Prometheus, OLM | cert-manager, JobSet, LWS |
 
-```bash
-# Create cluster and deploy in one command
-kueue-dev deploy kind --name dev
+## Common Options
 
-# Or deploy to existing cluster
-kueue-dev deploy kind --name dev --no-bundle
-```
+Both deployment types share these common options:
 
-### Deploy with Custom Configuration
-
-```bash
-# Deploy with specific frameworks
-kueue-dev deploy kind \
-  --name dev \
-  --kueue-frameworks BatchJob,Pod,Deployment,StatefulSet \
-  --kueue-namespace kueue-system
-```
-
-### Testing Bundle Before Production
-
-```bash
-# Build bundle
-kueue-dev images build bundle
-
-# Deploy with bundle to test
-kueue-dev deploy kind --name bundle-test
-```
-
-## Troubleshooting
-
-### OLM Installation Issues
-
-If OLM installation fails, you can:
-1. Use `--no-bundle` to skip OLM
-2. Check if OLM is already installed: `kubectl get ns olm`
-3. Verify `operator-sdk` is available: `operator-sdk version`
-
-### Missing operator-sdk
-
-If you see an error about missing `operator-sdk`:
-```
-operator-sdk is required for bundle deployment but not found in PATH.
-Install from: https://sdk.operatorframework.io/docs/installation/
-Or use --no-bundle to deploy without OLM
-```
-
-Solution:
-- Install operator-sdk from https://sdk.operatorframework.io/docs/installation/
-- Or use `--no-bundle` flag to deploy via direct manifests
+| Option | Description |
+|--------|-------------|
+| `-c, --cluster-name` | Kind cluster name |
+| `-k, --kubeconfig` | Path to kubeconfig file |
+| `--skip-deps` | Skip dependency installation |
+| `--cert-manager-version` | Override cert-manager version |
+| `--jobset-version` | Override JobSet version |
+| `--leaderworkerset-version` | Override LeaderWorkerSet version |
 
 ## Related
 
+- [Operator Deployment](./deploy-operator.md)
+- [Upstream Deployment](./deploy-upstream.md)
 - [Quick Start](../quick-start.md)
 - [Common Workflows](../workflows.md)
-- [OLM Workflow](../workflows/olm.md)

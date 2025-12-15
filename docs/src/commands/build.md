@@ -220,7 +220,7 @@ vim pkg/controllers/myfeature.go
 kueue-dev images build --related-images dev-images.json
 
 # Deploy to cluster
-kueue-dev deploy kind --name dev --related-images dev-images.json
+kueue-dev deploy operator kind --name dev --related-images dev-images.json
 ```
 
 ### CI/CD Pipeline

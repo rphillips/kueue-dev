@@ -70,7 +70,7 @@ This will:
 Deploy kueue-operator to your cluster:
 
 ```bash
-kueue-dev deploy kind --name my-cluster --related-images related_images.json
+kueue-dev deploy operator kind --name my-cluster --related-images related_images.json
 ```
 
 > **Note**: Replace `related_images.json` with your images file path.
@@ -132,15 +132,15 @@ You can customize which frameworks are enabled or skip CR creation entirely:
 
 ```bash
 # Deploy with only specific frameworks
-kueue-dev deploy kind --name my-cluster \
+kueue-dev deploy operator kind --name my-cluster \
   --kueue-frameworks BatchJob,Pod,JobSet
 
 # Use a custom namespace
-kueue-dev deploy kind --name my-cluster \
+kueue-dev deploy operator kind --name my-cluster \
   --kueue-namespace my-namespace
 
 # Skip Kueue CR creation (deploy operator only, create CR manually later)
-kueue-dev deploy kind --name my-cluster \
+kueue-dev deploy operator kind --name my-cluster \
   --skip-kueue-cr
 ```
 
@@ -322,7 +322,7 @@ Here's a cheat sheet for common operations:
 kueue-dev cluster create --name <name> [--cni calico|default]
 
 # Deploy operator
-kueue-dev deploy kind --name <name> --related-images <file>
+kueue-dev deploy operator kind --name <name> --related-images <file>
 
 # Run tests
 kueue-dev test run [--focus <pattern>] [--label-filter <filter>]
@@ -378,7 +378,7 @@ Then simply run:
 
 ```bash
 kueue-dev cluster create  # Uses "dev" as name
-kueue-dev deploy kind     # Uses "my-images.json"
+kueue-dev deploy operator kind     # Uses "my-images.json"
 ```
 
 ### Enable Verbose Output
@@ -386,9 +386,9 @@ kueue-dev deploy kind     # Uses "my-images.json"
 For debugging, use `-v` flags:
 
 ```bash
-kueue-dev -v deploy kind --name test    # Info level
-kueue-dev -vv deploy kind --name test   # Debug level
-kueue-dev -vvv deploy kind --name test  # Trace level
+kueue-dev -v deploy operator kind --name test    # Info level
+kueue-dev -vv deploy operator kind --name test   # Debug level
+kueue-dev -vvv deploy operator kind --name test  # Trace level
 ```
 
 ### Use Dry-Run
@@ -396,7 +396,7 @@ kueue-dev -vvv deploy kind --name test  # Trace level
 Preview operations before executing:
 
 ```bash
-kueue-dev --dry-run deploy kind --name test --related-images related_images.json
+kueue-dev --dry-run deploy operator kind --name test --related-images related_images.json
 ```
 
 ### Tab Completion

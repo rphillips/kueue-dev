@@ -155,16 +155,16 @@ You can override the frameworks and namespace at deployment time, or skip CR cre
 
 ```bash
 # Enable only specific frameworks for this deployment
-kueue-dev deploy kind --kueue-frameworks BatchJob,Pod,JobSet
+kueue-dev deploy operator kind --kueue-frameworks BatchJob,Pod,JobSet
 
 # Override the namespace
-kueue-dev deploy kind --kueue-namespace my-kueue-namespace
+kueue-dev deploy operator kind --kueue-namespace my-kueue-namespace
 
 # Skip Kueue CR creation (deploy operator only)
-kueue-dev deploy kind --skip-kueue-cr
+kueue-dev deploy operator kind --skip-kueue-cr
 
 # Combine multiple overrides
-kueue-dev deploy kind --kueue-frameworks BatchJob,Pod --kueue-namespace my-namespace
+kueue-dev deploy operator kind --kueue-frameworks BatchJob,Pod --kueue-namespace my-namespace
 
 # Or when running tests
 kueue-dev test operator --type kind --kueue-frameworks BatchJob,Pod --kueue-namespace my-namespace
@@ -207,13 +207,13 @@ You can override versions at deployment time:
 
 ```bash
 # Override cert-manager version
-kueue-dev deploy kind --cert-manager-version v1.17.0
+kueue-dev deploy operator kind --cert-manager-version v1.17.0
 
 # Override multiple versions
-kueue-dev deploy kind --cert-manager-version v1.17.0 --jobset-version v0.9.0
+kueue-dev deploy operator kind --cert-manager-version v1.17.0 --jobset-version v0.9.0
 
 # Override prometheus operator version
-kueue-dev deploy kind --prometheus-version v0.81.0
+kueue-dev deploy operator kind --prometheus-version v0.81.0
 ```
 
 The command-line options take precedence over the configuration file.

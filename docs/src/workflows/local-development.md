@@ -20,7 +20,7 @@ kueue-dev cluster create --name dev --cni calico
 ### 2. Initial Deployment
 
 ```bash
-kueue-dev deploy kind --name dev --related-images dev-images.json
+kueue-dev deploy operator kind --name dev --related-images dev-images.json
 ```
 
 ### 3. Develop and Test Loop
@@ -36,7 +36,7 @@ kueue-dev images build --related-images dev-images.json --parallel
 kueue-dev cleanup
 
 # Redeploy with new images
-kueue-dev deploy kind --name dev --related-images dev-images.json
+kueue-dev deploy operator kind --name dev --related-images dev-images.json
 
 # Test your changes
 kueue-dev test run --focus "MyFeature"

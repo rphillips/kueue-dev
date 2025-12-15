@@ -12,10 +12,10 @@ Control output detail with multiple `-v` flags.
 ## Examples
 
 ```bash
-kueue-dev deploy kind --name test                # Minimal output
-kueue-dev -v deploy kind --name test             # Info level
-kueue-dev -vv deploy kind --name test            # Debug level
-kueue-dev -vvv deploy kind --name test           # Trace level
+kueue-dev deploy operator kind --name test                # Minimal output
+kueue-dev -v deploy operator kind --name test             # Info level
+kueue-dev -vv deploy operator kind --name test            # Debug level
+kueue-dev -vvv deploy operator kind --name test           # Trace level
 ```
 
 ## Use Cases

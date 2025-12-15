@@ -5,7 +5,7 @@ use clap::{CommandFactory, Parser, Subcommand};
 use clap_complete::{Shell, generate};
 use kueue_dev::config::settings::Settings;
 use kueue_dev::utils::{CommonPrereqs, ContainerRuntime, Prerequisite};
-use kueue_dev::{log_error, log_info};
+use kueue_dev::{log_error, log_info, log_warn};
 use std::io;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
@@ -144,6 +144,21 @@ enum ClusterCommands {
 
 #[derive(Subcommand)]
 enum DeployCommands {
+    /// Deploy kueue-operator (OpenShift operator)
+    Operator {
+        #[command(subcommand)]
+        command: DeployOperatorCommands,
+    },
+
+    /// Deploy upstream kueue (vanilla Kubernetes)
+    Upstream {
+        #[command(subcommand)]
+        command: DeployUpstreamCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum DeployOperatorCommands {
     /// Deploy to kind cluster with prebuilt images
     Kind {
         /// Cluster name
@@ -216,6 +231,131 @@ enum DeployCommands {
         /// Skip tests after deployment
         #[arg(long)]
         skip_tests: bool,
+    },
+}
+
+#[derive(Subcommand)]
+enum DeployUpstreamCommands {
+    /// Deploy using kustomize
+    Kustomize {
+        /// Path to upstream kueue source directory
+        #[arg(long = "upstream-source", env = "KUEUE_UPSTREAM_SOURCE")]
+        source: Option<String>,
+
+        /// Kustomize overlay to use (default, dev, alpha-enabled)
+        #[arg(short, long, default_value = "default")]
+        overlay: String,
+
+        /// Override controller image (ignored if --build-image is used)
+        #[arg(long)]
+        image: Option<String>,
+
+        /// Build kueue image from source and load to kind cluster
+        #[arg(long)]
+        build_image: bool,
+
+        /// Custom image tag when building (default: localhost/kueue:dev)
+        #[arg(long)]
+        image_tag: Option<String>,
+
+        /// Namespace to deploy to
+        #[arg(short, long, default_value = "kueue-system")]
+        namespace: String,
+
+        /// Cluster name (for kind clusters)
+        #[arg(short = 'c', long, default_value = "kueue-test")]
+        cluster_name: String,
+
+        /// Path to kubeconfig file
+        #[arg(short, long, env = "KUBECONFIG")]
+        kubeconfig: Option<String>,
+
+        /// Skip installing dependencies (cert-manager, jobset, leaderworkerset)
+        #[arg(long)]
+        skip_deps: bool,
+
+        /// Override cert-manager version (e.g., v1.18.0)
+        #[arg(long)]
+        cert_manager_version: Option<String>,
+
+        /// Override JobSet version (e.g., v0.10.1)
+        #[arg(long)]
+        jobset_version: Option<String>,
+
+        /// Override LeaderWorkerSet version (e.g., v0.7.0)
+        #[arg(long)]
+        leaderworkerset_version: Option<String>,
+
+        /// Override AppWrapper version (e.g., v1.1.2)
+        #[arg(long)]
+        appwrapper_version: Option<String>,
+
+        /// Override Kubeflow Training Operator version (e.g., v1.8.1)
+        #[arg(long)]
+        training_operator_version: Option<String>,
+    },
+
+    /// Deploy using helm
+    Helm {
+        /// Path to upstream kueue source directory
+        #[arg(long = "upstream-source", env = "KUEUE_UPSTREAM_SOURCE")]
+        source: Option<String>,
+
+        /// Helm release name
+        #[arg(short, long, default_value = "kueue")]
+        release_name: String,
+
+        /// Namespace to deploy to
+        #[arg(short, long, default_value = "kueue-system")]
+        namespace: String,
+
+        /// Path to values.yaml override file
+        #[arg(short = 'f', long)]
+        values_file: Option<String>,
+
+        /// Set helm values (can be repeated, e.g., --set key=value)
+        #[arg(long = "set", value_name = "KEY=VALUE")]
+        set_values: Vec<String>,
+
+        /// Build kueue image from source and load to kind cluster
+        #[arg(long)]
+        build_image: bool,
+
+        /// Custom image tag when building (default: localhost/kueue:dev)
+        #[arg(long)]
+        image_tag: Option<String>,
+
+        /// Cluster name (for kind clusters)
+        #[arg(short = 'c', long, default_value = "kueue-test")]
+        cluster_name: String,
+
+        /// Path to kubeconfig file
+        #[arg(short, long, env = "KUBECONFIG")]
+        kubeconfig: Option<String>,
+
+        /// Skip installing dependencies (cert-manager, jobset, leaderworkerset)
+        #[arg(long)]
+        skip_deps: bool,
+
+        /// Override cert-manager version (e.g., v1.18.0)
+        #[arg(long)]
+        cert_manager_version: Option<String>,
+
+        /// Override JobSet version (e.g., v0.10.1)
+        #[arg(long)]
+        jobset_version: Option<String>,
+
+        /// Override LeaderWorkerSet version (e.g., v0.7.0)
+        #[arg(long)]
+        leaderworkerset_version: Option<String>,
+
+        /// Override AppWrapper version (e.g., v1.1.2)
+        #[arg(long)]
+        appwrapper_version: Option<String>,
+
+        /// Override Kubeflow Training Operator version (e.g., v1.8.1)
+        #[arg(long)]
+        training_operator_version: Option<String>,
     },
 }
 
@@ -398,7 +538,14 @@ fn handle_cluster_command(command: ClusterCommands) -> Result<()> {
 
 fn handle_deploy_command(command: DeployCommands) -> Result<()> {
     match command {
-        DeployCommands::Kind {
+        DeployCommands::Operator { command } => handle_deploy_operator_command(command),
+        DeployCommands::Upstream { command } => handle_deploy_upstream_command(command),
+    }
+}
+
+fn handle_deploy_operator_command(command: DeployOperatorCommands) -> Result<()> {
+    match command {
+        DeployOperatorCommands::Kind {
             name,
             images,
             kubeconfig,
@@ -434,7 +581,7 @@ fn handle_deploy_command(command: DeployCommands) -> Result<()> {
                 prometheus_version,
             })
         }
-        DeployCommands::Olm { bundle, name } => {
+        DeployOperatorCommands::Olm { bundle, name } => {
             use kueue_dev::install::olm;
             use std::env;
             use std::path::PathBuf;
@@ -473,7 +620,7 @@ fn handle_deploy_command(command: DeployCommands) -> Result<()> {
 
             Ok(())
         }
-        DeployCommands::Openshift { images, skip_tests } => {
+        DeployOperatorCommands::Openshift { images, skip_tests } => {
             use kueue_dev::config::settings::Settings;
 
             // Use provided images file or fall back to config file setting
@@ -481,6 +628,83 @@ fn handle_deploy_command(command: DeployCommands) -> Result<()> {
             let images_file = images.unwrap_or(settings.defaults.images_file);
 
             kueue_dev::commands::openshift::deploy_openshift(images_file, skip_tests)
+        }
+    }
+}
+
+fn handle_deploy_upstream_command(command: DeployUpstreamCommands) -> Result<()> {
+    match command {
+        DeployUpstreamCommands::Kustomize {
+            source,
+            overlay,
+            image,
+            build_image,
+            image_tag,
+            namespace,
+            cluster_name,
+            kubeconfig,
+            skip_deps,
+            cert_manager_version,
+            jobset_version,
+            leaderworkerset_version,
+            appwrapper_version,
+            training_operator_version,
+        } => {
+            use kueue_dev::commands::deploy::DeployUpstreamKustomizeOptions;
+
+            kueue_dev::commands::deploy::deploy_upstream_kustomize(DeployUpstreamKustomizeOptions {
+                source,
+                overlay,
+                image,
+                build_image,
+                image_tag,
+                namespace,
+                kubeconfig,
+                cluster_name,
+                skip_deps,
+                cert_manager_version,
+                jobset_version,
+                leaderworkerset_version,
+                appwrapper_version,
+                training_operator_version,
+            })
+        }
+        DeployUpstreamCommands::Helm {
+            source,
+            release_name,
+            namespace,
+            values_file,
+            set_values,
+            build_image,
+            image_tag,
+            cluster_name,
+            kubeconfig,
+            skip_deps,
+            cert_manager_version,
+            jobset_version,
+            leaderworkerset_version,
+            appwrapper_version,
+            training_operator_version,
+        } => {
+            use kueue_dev::commands::deploy::DeployUpstreamHelmOptions;
+
+            kueue_dev::commands::deploy::deploy_upstream_helm(DeployUpstreamHelmOptions {
+                source,
+                release_name,
+                namespace,
+                values_file,
+                set_values,
+                build_image,
+                image_tag,
+                kubeconfig,
+                cluster_name,
+                skip_deps,
+                cert_manager_version,
+                jobset_version,
+                leaderworkerset_version,
+                appwrapper_version,
+                training_operator_version,
+            })
         }
     }
 }
@@ -610,9 +834,14 @@ fn handle_check_command() -> Result<()> {
     let go = CommonPrereqs::go();
     let oc = CommonPrereqs::oc();
     let operator_sdk = CommonPrereqs::operator_sdk();
+    let kustomize = CommonPrereqs::kustomize();
+    let helm = CommonPrereqs::helm();
 
     // Build vector of all prerequisites
     let prereqs: Vec<&dyn Prerequisite> = vec![&kubectl, &kind_prereq, &go, &oc, &operator_sdk];
+
+    // Optional prerequisites for upstream deployment
+    let optional_prereqs: Vec<&dyn Prerequisite> = vec![&kustomize, &helm];
 
     // Check container runtime
     let container_runtime_available = match ContainerRuntime::detect() {
@@ -631,9 +860,12 @@ fn handle_check_command() -> Result<()> {
     // Check all prerequisites
     let (found, missing) = CommonPrereqs::check_all(&prereqs);
 
+    // Check optional prerequisites
+    let (optional_found, optional_missing) = CommonPrereqs::check_all(&optional_prereqs);
+
     // Display found tools
     if !found.is_empty() {
-        log_info!("Found tools:");
+        log_info!("Required tools:");
         for tool in &found {
             log_info!("  ✓ {}", tool);
         }
@@ -642,18 +874,36 @@ fn handle_check_command() -> Result<()> {
 
     // Display missing tools
     if !missing.is_empty() {
-        log_error!("Missing tools:");
+        log_error!("Missing required tools:");
         for (name, hint) in &missing {
             log_error!("  ✗ {} - {}", name, hint);
         }
         log_info!("");
     }
 
+    // Display optional tools (for upstream deployment)
+    log_info!("Optional tools (for upstream deployment):");
+    for tool in &optional_found {
+        log_info!("  ✓ {}", tool);
+    }
+    for (name, _hint) in &optional_missing {
+        log_warn!("  - {} (not installed)", name);
+    }
+    log_info!("");
+
     // Summary
     log_info!("==========================================");
     log_info!("Summary:");
-    log_info!("  Found: {}", found.len());
-    log_info!("  Missing: {}", missing.len());
+    log_info!(
+        "  Required: {}/{}",
+        found.len(),
+        found.len() + missing.len()
+    );
+    log_info!(
+        "  Optional: {}/{}",
+        optional_found.len(),
+        optional_found.len() + optional_missing.len()
+    );
 
     if !container_runtime_available {
         log_info!("  Container runtime: Missing");
@@ -664,12 +914,19 @@ fn handle_check_command() -> Result<()> {
     log_info!("==========================================");
     log_info!("");
 
-    // Exit with error if anything is missing
+    // Exit with error if required tools are missing
     if !missing.is_empty() || !container_runtime_available {
-        log_error!("Some prerequisites are missing. Please install them before proceeding.");
+        log_error!(
+            "Some required prerequisites are missing. Please install them before proceeding."
+        );
         std::process::exit(1);
     } else {
-        log_info!("✓ All prerequisites satisfied!");
+        log_info!("✓ All required prerequisites satisfied!");
+        if !optional_missing.is_empty() {
+            log_info!(
+                "  (Optional tools missing: install kustomize/helm for 'deploy upstream' commands)"
+            );
+        }
         Ok(())
     }
 }

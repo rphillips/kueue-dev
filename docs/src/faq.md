@@ -30,7 +30,7 @@ A: Create a JSON file with your image references:
 }
 ```
 
-Then deploy: `kueue-dev deploy kind --related-images my-images.json`
+Then deploy: `kueue-dev deploy operator kind --related-images my-images.json`
 
 ### Q: Can I run multiple clusters simultaneously?
 
@@ -40,8 +40,8 @@ A: Yes! Use different cluster names:
 kueue-dev cluster create --name cluster1
 kueue-dev cluster create --name cluster2
 
-kueue-dev deploy kind --name cluster1 --related-images images1.json
-kueue-dev deploy kind --name cluster2 --related-images images2.json
+kueue-dev deploy operator kind --name cluster1 --related-images images1.json
+kueue-dev deploy operator kind --name cluster2 --related-images images2.json
 ```
 
 ### Q: How do I skip specific tests?
@@ -63,7 +63,7 @@ A: **Calico** is recommended for most scenarios as it provides NetworkPolicy sup
 A:
 1. Build new images (outside kueue-dev)
 2. Clean resources: `kueue-dev cleanup`
-3. Redeploy: `kueue-dev deploy kind --name <cluster> --related-images <file>`
+3. Redeploy: `kueue-dev deploy operator kind --name <cluster> --related-images <file>`
 
 ### Q: Can I use kueue-dev with real Kubernetes clusters?
 

@@ -58,6 +58,12 @@ pub struct Defaults {
     /// If not set, kubeconfig will not be automatically saved to a file.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub kubeconfig_path: Option<String>,
+
+    /// Optional path to upstream kueue source directory.
+    /// Used for deploying upstream kueue via kustomize or helm.
+    /// Defaults to "../upstream/kueue/src" relative to kueue-operator source.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub upstream_source: Option<String>,
 }
 
 /// Color and theme settings
@@ -107,6 +113,12 @@ pub struct Versions {
 
     #[serde(default = "default_leaderworkerset_version")]
     pub leaderworkerset: String,
+
+    #[serde(default = "default_appwrapper_version")]
+    pub appwrapper: String,
+
+    #[serde(default = "default_training_operator_version")]
+    pub training_operator: String,
 
     #[serde(default = "default_calico_version")]
     pub calico: String,
@@ -165,6 +177,14 @@ fn default_jobset_version() -> String {
 
 fn default_leaderworkerset_version() -> String {
     "v0.7.0".to_string()
+}
+
+fn default_appwrapper_version() -> String {
+    "v1.1.2".to_string()
+}
+
+fn default_training_operator_version() -> String {
+    "v1.8.1".to_string()
 }
 
 fn default_calico_version() -> String {
@@ -230,6 +250,7 @@ impl Default for Defaults {
             images_file: default_images_file(),
             kueue_operator_source_path: None,
             kubeconfig_path: None,
+            upstream_source: None,
         }
     }
 }
@@ -278,6 +299,8 @@ impl Default for Versions {
             cert_manager: default_cert_manager_version(),
             jobset: default_jobset_version(),
             leaderworkerset: default_leaderworkerset_version(),
+            appwrapper: default_appwrapper_version(),
+            training_operator: default_training_operator_version(),
             calico: default_calico_version(),
             prometheus_operator: default_prometheus_operator_version(),
         }
@@ -356,6 +379,7 @@ cni_provider = "calico"
 images_file = "related_images.json"
 # kueue_operator_source_path = "/path/to/kueue-operator"  # Optional: Path to kueue-operator source. Defaults to current directory.
 # kubeconfig_path = "kube.kubeconfig"  # Optional: Path where kind should save kubeconfig. If not set, kubeconfig won't be saved to file.
+# upstream_source = "/path/to/kueue/upstream/src"  # Optional: Path to upstream kueue source for kustomize/helm deployment.
 
 [colors]
 enabled = true

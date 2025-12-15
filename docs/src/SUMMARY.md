@@ -22,6 +22,8 @@
 - [Images](./commands/images.md)
   - [Build](./commands/build.md)
 - [Deployment](./commands/deploy.md)
+  - [Operator Deployment](./commands/deploy-operator.md)
+  - [Upstream Deployment](./commands/deploy-upstream.md)
 - [Testing](./commands/test.md)
 - [Cleanup](./commands/cleanup.md)
 - [Interactive Menu](./commands/interactive.md)

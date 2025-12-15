@@ -167,7 +167,7 @@ kueue-dev images build --related-images dev-images.json --parallel
 kueue-dev images load --name dev --related-images dev-images.json
 
 # Deploy
-kueue-dev deploy kind --name dev --related-images dev-images.json
+kueue-dev deploy operator kind --name dev --related-images dev-images.json
 ```
 
 ### List Available Images
@@ -188,7 +188,7 @@ kueue-dev images build --parallel
 
 # 3. Cleanup and redeploy
 kueue-dev cleanup
-kueue-dev deploy kind --name dev
+kueue-dev deploy operator kind --name dev
 
 # 4. Test
 kueue-dev test run --focus "MyFeature"
