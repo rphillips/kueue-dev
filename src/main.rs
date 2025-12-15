@@ -9,9 +9,34 @@ use kueue_dev::{log_error, log_info};
 use std::io;
 use tracing_subscriber::{EnvFilter, fmt, prelude::*};
 
+mod built_info {
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+}
+
+fn get_version() -> &'static str {
+    static VERSION: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    VERSION.get_or_init(|| {
+        let version_str = match built_info::GIT_VERSION {
+            Some(git_ver) => {
+                let clean_git_ver = git_ver.strip_prefix('v').unwrap_or(git_ver);
+                clean_git_ver.to_string()
+            }
+            None => match built_info::GIT_COMMIT_HASH_SHORT {
+                Some(hash) => format!("{}+{}", built_info::PKG_VERSION, hash),
+                None => built_info::PKG_VERSION.to_string(),
+            },
+        };
+        let rustc_ver = built_info::RUSTC_VERSION
+            .split_whitespace()
+            .nth(1)
+            .unwrap_or("unknown");
+        format!("{} (rustc {})", version_str, rustc_ver)
+    })
+}
+
 #[derive(Parser)]
 #[command(name = "kueue-dev")]
-#[command(author, version, about = "Development CLI tool for kueue-operator", long_about = None)]
+#[command(author, version = get_version(), about = "Development CLI tool for kueue-operator", long_about = None)]
 struct Cli {
     /// Verbose output (can be used multiple times: -v, -vv, -vvv)
     /// -v: INFO, -vv: DEBUG, -vvv: TRACE
@@ -638,33 +663,7 @@ fn handle_completion_command(shell: Shell) -> Result<()> {
     Ok(())
 }
 
-mod built_info {
-    include!(concat!(env!("OUT_DIR"), "/built.rs"));
-}
-
 fn handle_version_command() -> Result<()> {
-    // Check if we're at a tagged version (GIT_VERSION matches PKG_VERSION)
-    // or if we have commits beyond the tag
-    let version_suffix = match (built_info::GIT_VERSION, built_info::GIT_COMMIT_HASH_SHORT) {
-        (Some(git_ver), Some(hash)) => {
-            // GIT_VERSION is like "v0.5.12" or "v0.5.12-3-g5388b74"
-            // If it contains a hyphen after the version, we have commits beyond the tag
-            let clean_git_ver = git_ver.strip_prefix('v').unwrap_or(git_ver);
-            if clean_git_ver != built_info::PKG_VERSION {
-                format!("+{}", hash)
-            } else {
-                String::new()
-            }
-        }
-        (None, Some(hash)) => format!("+{}", hash), // No tag, show commit
-        _ => String::new(),
-    };
-
-    println!(
-        "kueue-dev {}{} (rustc {})",
-        built_info::PKG_VERSION,
-        version_suffix,
-        built_info::RUSTC_VERSION.split_whitespace().nth(1).unwrap_or("unknown")
-    );
+    println!("kueue-dev {}", get_version());
     Ok(())
 }
