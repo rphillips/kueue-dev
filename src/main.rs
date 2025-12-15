@@ -638,8 +638,33 @@ fn handle_completion_command(shell: Shell) -> Result<()> {
     Ok(())
 }
 
+mod built_info {
+    include!(concat!(env!("OUT_DIR"), "/built.rs"));
+}
+
 fn handle_version_command() -> Result<()> {
-    println!("kueue-dev {}", env!("CARGO_PKG_VERSION"));
-    println!("Development CLI tool for kueue-operator");
+    // Check if we're at a tagged version (GIT_VERSION matches PKG_VERSION)
+    // or if we have commits beyond the tag
+    let version_suffix = match (built_info::GIT_VERSION, built_info::GIT_COMMIT_HASH_SHORT) {
+        (Some(git_ver), Some(hash)) => {
+            // GIT_VERSION is like "v0.5.12" or "v0.5.12-3-g5388b74"
+            // If it contains a hyphen after the version, we have commits beyond the tag
+            let clean_git_ver = git_ver.strip_prefix('v').unwrap_or(git_ver);
+            if clean_git_ver != built_info::PKG_VERSION {
+                format!("+{}", hash)
+            } else {
+                String::new()
+            }
+        }
+        (None, Some(hash)) => format!("+{}", hash), // No tag, show commit
+        _ => String::new(),
+    };
+
+    println!(
+        "kueue-dev {}{} (rustc {})",
+        built_info::PKG_VERSION,
+        version_suffix,
+        built_info::RUSTC_VERSION.split_whitespace().nth(1).unwrap_or("unknown")
+    );
     Ok(())
 }
