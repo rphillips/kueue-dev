@@ -11,10 +11,6 @@ use crate::install::{calico, cert_manager, jobset, leaderworkerset, operator};
 use crate::k8s::{images, kind, kubectl, nodes};
 use crate::utils::ContainerRuntime;
 
-const CERT_MANAGER_VERSION: &str = "v1.13.3";
-const JOBSET_VERSION: &str = "v0.10.1";
-const LEADERWORKERSET_VERSION: &str = "v0.7.0";
-
 /// Options for running tests on kind cluster
 pub struct TestKindOptions {
     pub cluster_name: String,
@@ -174,7 +170,7 @@ pub fn run_tests_kind(options: TestKindOptions) -> Result<()> {
     crate::log_info!("Kubeconfig: {}", kubeconfig_path.display());
 
     // Install Calico
-    calico::install(Some(&kubeconfig_path))?;
+    calico::install(&settings.versions.calico, Some(&kubeconfig_path))?;
 
     // Label worker nodes
     nodes::label_worker_nodes(Some(&kubeconfig_path))?;
@@ -196,13 +192,13 @@ pub fn run_tests_kind(options: TestKindOptions) -> Result<()> {
     images::load_images_to_kind(&options.cluster_name, &image_config, &runtime, true)?;
 
     // Install cert-manager
-    cert_manager::install(CERT_MANAGER_VERSION, Some(&kubeconfig_path))?;
+    cert_manager::install(&settings.versions.cert_manager, Some(&kubeconfig_path))?;
 
     // Install JobSet
-    jobset::install(JOBSET_VERSION, Some(&kubeconfig_path))?;
+    jobset::install(&settings.versions.jobset, Some(&kubeconfig_path))?;
 
     // Install LeaderWorkerSet
-    leaderworkerset::install(LEADERWORKERSET_VERSION, Some(&kubeconfig_path))?;
+    leaderworkerset::install(&settings.versions.leaderworkerset, Some(&kubeconfig_path))?;
 
     // Install CRDs
     operator::install_crds(Some(&kubeconfig_path))?;

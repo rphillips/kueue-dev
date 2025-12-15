@@ -25,6 +25,10 @@ kueue-dev deploy kind [OPTIONS]
 - `--kueue-frameworks <FRAMEWORKS>` - Comma-separated list of frameworks to enable
 - `--kueue-namespace <NAMESPACE>` - Kueue CR namespace (default: openshift-kueue-operator)
 - `--no-bundle` - Deploy without OLM bundle (use direct manifests)
+- `--cert-manager-version <VERSION>` - Override cert-manager version (e.g., v1.18.0)
+- `--jobset-version <VERSION>` - Override JobSet version (e.g., v0.10.1)
+- `--leaderworkerset-version <VERSION>` - Override LeaderWorkerSet version (e.g., v0.7.0)
+- `--prometheus-version <VERSION>` - Override Prometheus Operator version (e.g., v0.82.2)
 
 **Examples:**
 
@@ -43,6 +47,9 @@ kueue-dev deploy kind --skip-kueue-cr
 
 # Deploy with specific frameworks enabled
 kueue-dev deploy kind --kueue-frameworks BatchJob,Pod,JobSet
+
+# Deploy with custom dependency versions
+kueue-dev deploy kind --cert-manager-version v1.17.0 --jobset-version v0.9.0
 ```
 
 **Deployment Methods:**
@@ -54,10 +61,18 @@ By default, deployment uses OLM bundle which:
 - Requires `operator-sdk` binary
 
 Use `--no-bundle` flag to deploy via direct manifests which:
-- Installs cert-manager, JobSet, and LeaderWorkerSet
+- Installs cert-manager, JobSet, LeaderWorkerSet, and Prometheus Operator
 - Applies CRDs and operator manifests directly
 - Faster for development iteration
 - Does not require `operator-sdk`
+
+**Dependencies Installed:**
+
+Both deployment methods install these dependencies in parallel:
+- cert-manager (for webhook certificates)
+- JobSet (for JobSet workloads)
+- LeaderWorkerSet (for LeaderWorkerSet workloads)
+- Prometheus Operator (for metrics collection)
 
 **Version Information:**
 

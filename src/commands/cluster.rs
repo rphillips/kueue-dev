@@ -15,6 +15,9 @@ pub fn create(name: String, cni: String, kubeconfig: Option<String>) -> Result<(
     use crate::config::settings::Settings;
     use std::path::PathBuf;
 
+    // Load settings for versions and other config
+    let settings = Settings::load();
+
     crate::log_info!("Creating kind cluster: {}", name);
 
     let cni_provider = CniProvider::from_str(&cni)?;
@@ -24,12 +27,16 @@ pub fn create(name: String, cni: String, kubeconfig: Option<String>) -> Result<(
     let kubeconfig_path = if let Some(kc) = kubeconfig {
         PathBuf::from(kc)
     } else {
-        let settings = Settings::load();
-        settings.defaults.kubeconfig_path
-            .map(PathBuf::from)
-            .ok_or_else(|| anyhow::anyhow!(
-                "Kubeconfig path is required. Provide it via --kubeconfig flag or set 'kubeconfig_path' in config file"
-            ))?
+        settings
+            .defaults
+            .kubeconfig_path
+            .as_ref()
+            .map(|p| PathBuf::from(p))
+            .ok_or_else(|| {
+                anyhow::anyhow!(
+                    "Kubeconfig path is required. Provide it via --kubeconfig flag or set 'kubeconfig_path' in config file"
+                )
+            })?
     };
 
     // Create the cluster with kubeconfig
@@ -39,7 +46,7 @@ pub fn create(name: String, cni: String, kubeconfig: Option<String>) -> Result<(
 
     // Install Calico if selected
     if matches!(cni_provider, CniProvider::Calico) {
-        calico::install(Some(&saved_kubeconfig))?;
+        calico::install(&settings.versions.calico, Some(&saved_kubeconfig))?;
     } else {
         // Wait for nodes to be ready with default CNI
         crate::log_info!("Waiting for nodes to be ready with default CNI...");

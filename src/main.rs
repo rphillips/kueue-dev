@@ -178,6 +178,22 @@ enum DeployCommands {
         /// Deploy without OLM bundle (use direct manifest deployment)
         #[arg(long)]
         no_bundle: bool,
+
+        /// Override cert-manager version (e.g., v1.18.0)
+        #[arg(long)]
+        cert_manager_version: Option<String>,
+
+        /// Override JobSet version (e.g., v0.10.1)
+        #[arg(long)]
+        jobset_version: Option<String>,
+
+        /// Override LeaderWorkerSet version (e.g., v0.7.0)
+        #[arg(long)]
+        leaderworkerset_version: Option<String>,
+
+        /// Override Prometheus Operator version (e.g., v0.82.2)
+        #[arg(long)]
+        prometheus_version: Option<String>,
     },
 
     /// Deploy via OLM bundle
@@ -391,6 +407,10 @@ fn handle_deploy_command(command: DeployCommands) -> Result<()> {
             kueue_frameworks,
             kueue_namespace,
             no_bundle,
+            cert_manager_version,
+            jobset_version,
+            leaderworkerset_version,
+            prometheus_version,
         } => {
             use kueue_dev::commands::deploy::DeployKindOptions;
             use kueue_dev::config::settings::Settings;
@@ -408,6 +428,10 @@ fn handle_deploy_command(command: DeployCommands) -> Result<()> {
                 kueue_frameworks,
                 kueue_namespace,
                 use_bundle: !no_bundle,
+                cert_manager_version,
+                jobset_version,
+                leaderworkerset_version,
+                prometheus_version,
             })
         }
         DeployCommands::Olm { bundle, name } => {

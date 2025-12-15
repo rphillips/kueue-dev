@@ -4,9 +4,20 @@ use crate::k8s::kubectl;
 use anyhow::{Context, Result};
 use std::path::Path;
 
-/// Install Prometheus operator
-pub fn install_prometheus_operator(version: &str, kubeconfig: Option<&Path>) -> Result<()> {
+/// Install Prometheus operator and create a Prometheus instance
+pub fn install(version: &str, kubeconfig: Option<&Path>) -> Result<()> {
     crate::log_info!("Installing Prometheus Operator {}...", version);
+
+    // Check if prometheus-operator is already installed
+    let ns_check = kubectl::run_kubectl_output(
+        &["get", "deployment", "prometheus-operator", "-n", "default"],
+        kubeconfig,
+    );
+
+    if ns_check.is_ok() {
+        crate::log_info!("Prometheus Operator already installed, skipping installation");
+        return Ok(());
+    }
 
     let bundle_url = format!(
         "https://github.com/prometheus-operator/prometheus-operator/releases/download/{}/bundle.yaml",
@@ -47,12 +58,18 @@ pub fn install_prometheus_operator(version: &str, kubeconfig: Option<&Path>) -> 
     // Patch deployment to add debug log level
     kubectl::run_kubectl(
         &[
-            "patch", "deployment", "prometheus-operator", "-n", "default",
+            "patch",
+            "deployment",
+            "prometheus-operator",
+            "-n",
+            "default",
             "--type=json",
-            "-p", r#"[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--log-level=debug"}]"#,
+            "-p",
+            r#"[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--log-level=debug"}]"#,
         ],
         kubeconfig,
-    ).ok(); // Ignore errors if already patched
+    )
+    .ok(); // Ignore errors if already patched
 
     crate::log_info!("Waiting for Prometheus Operator to be ready...");
     kubectl::wait_for_condition(
@@ -63,39 +80,27 @@ pub fn install_prometheus_operator(version: &str, kubeconfig: Option<&Path>) -> 
         kubeconfig,
     )?;
 
-    crate::log_info!("Prometheus Operator installed successfully with debug logging enabled");
+    crate::log_info!("Prometheus Operator installed successfully");
+
+    // Now create the Prometheus instance
+    create_prometheus_instance(kubeconfig)?;
+
     Ok(())
 }
 
-/// Create monitoring namespace
-pub fn create_monitoring_namespace(kubeconfig: Option<&Path>) -> Result<()> {
-    crate::log_info!("Creating openshift-monitoring namespace...");
+/// Create Prometheus instance with RBAC
+fn create_prometheus_instance(kubeconfig: Option<&Path>) -> Result<()> {
+    crate::log_info!("Creating Prometheus instance...");
 
-    let namespace_yaml = r#"apiVersion: v1
-kind: Namespace
-metadata:
-  name: openshift-monitoring
-  labels:
-    openshift.io/cluster-monitoring: "true"
-    kubernetes.io/metadata.name: openshift-monitoring
-"#;
-
-    kubectl::apply_yaml(namespace_yaml, kubeconfig)?;
-    crate::log_info!("OpenShift monitoring namespace created successfully");
-    Ok(())
-}
-
-/// Create Prometheus instance with debugging
-pub fn create_prometheus_instance(kubeconfig: Option<&Path>) -> Result<()> {
-    crate::log_info!("Creating Prometheus instance with debugging enabled...");
-
-    let prometheus_yaml = r#"apiVersion: v1
+    // Service Account
+    let service_account_yaml = r#"apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: prometheus
-  namespace: openshift-monitoring
----
-apiVersion: rbac.authorization.k8s.io/v1
+"#;
+
+    // Cluster Role
+    let cluster_role_yaml = r#"apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
   name: prometheus
@@ -113,21 +118,21 @@ rules:
   - configmaps
   verbs: ["get"]
 - apiGroups:
+  - discovery.k8s.io
+  resources:
+  - endpointslices
+  verbs: ["get", "list", "watch"]
+- apiGroups:
   - networking.k8s.io
   resources:
   - ingresses
   verbs: ["get", "list", "watch"]
-- apiGroups:
-  - monitoring.coreos.com
-  resources:
-  - servicemonitors
-  - podmonitors
-  - prometheusrules
-  verbs: ["get", "list", "watch"]
 - nonResourceURLs: ["/metrics"]
   verbs: ["get"]
----
-apiVersion: rbac.authorization.k8s.io/v1
+"#;
+
+    // Cluster Role Binding
+    let cluster_role_binding_yaml = r#"apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: prometheus
@@ -138,60 +143,42 @@ roleRef:
 subjects:
 - kind: ServiceAccount
   name: prometheus
-  namespace: openshift-monitoring
----
-apiVersion: monitoring.coreos.com/v1
+  namespace: default
+"#;
+
+    // Prometheus Instance
+    let prometheus_instance_yaml = r#"apiVersion: monitoring.coreos.com/v1
 kind: Prometheus
 metadata:
   name: prometheus
-  namespace: openshift-monitoring
 spec:
+  scrapeInterval: "5s"
+  logLevel: "debug"
   serviceAccountName: prometheus
-  replicas: 1
-  logLevel: debug
-  logFormat: logfmt
-  retention: 2h
-  resources:
-    requests:
-      memory: 400Mi
-  enableAdminAPI: true
   serviceMonitorSelector: {}
   serviceMonitorNamespaceSelector: {}
-  podMonitorSelector: {}
-  podMonitorNamespaceSelector: {}
-  ruleSelector: {}
-  ruleNamespaceSelector: {}
----
-apiVersion: v1
-kind: Service
-metadata:
-  name: prometheus
-  namespace: openshift-monitoring
-  labels:
-    app: prometheus
-spec:
-  type: NodePort
-  ports:
-  - name: web
-    port: 9090
-    targetPort: web
-    nodePort: 30090
-  selector:
-    app.kubernetes.io/name: prometheus
-    prometheus: prometheus
 "#;
 
-    kubectl::apply_yaml(prometheus_yaml, kubeconfig)?;
+    // Apply all resources
+    kubectl::apply_yaml(service_account_yaml, kubeconfig)
+        .context("Failed to create Prometheus ServiceAccount")?;
 
-    crate::log_info!("Waiting for Prometheus Operator to create the StatefulSet...");
-    std::thread::sleep(std::time::Duration::from_secs(10));
+    kubectl::apply_yaml(cluster_role_yaml, kubeconfig)
+        .context("Failed to create Prometheus ClusterRole")?;
+
+    kubectl::apply_yaml(cluster_role_binding_yaml, kubeconfig)
+        .context("Failed to create Prometheus ClusterRoleBinding")?;
+
+    kubectl::apply_yaml(prometheus_instance_yaml, kubeconfig)
+        .context("Failed to create Prometheus instance")?;
+
+    crate::log_info!("Waiting for Prometheus pods to be ready...");
 
     // Wait for the statefulset and pods
-    crate::log_info!("Waiting for Prometheus pods to be ready...");
     kubectl::wait_for_condition(
         "pod",
         "condition=ready",
-        Some("openshift-monitoring"),
+        Some("default"),
         "300s",
         kubeconfig,
     )

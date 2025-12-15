@@ -15,7 +15,7 @@ Configuration files are loaded in this order (first found wins):
 
 ### Format
 
-Configuration uses TOML format with five main sections:
+Configuration uses TOML format with six main sections:
 
 ```toml
 [defaults]
@@ -35,6 +35,13 @@ show_progress = true
 [kueue]
 namespace = "openshift-kueue-operator"
 frameworks = ["BatchJob", "Pod", "Deployment", "StatefulSet", "JobSet", "LeaderWorkerSet"]
+
+[versions]
+cert_manager = "v1.18.0"
+jobset = "v0.10.1"
+leaderworkerset = "v0.7.0"
+calico = "v3.28.2"
+prometheus_operator = "v0.82.2"
 
 [tests]
 operator_skip_patterns = ["AppWrapper", "PyTorch", "Metrics", ...]
@@ -172,6 +179,44 @@ The command-line options take precedence over the configuration file.
 - Testing operator deployment without deploying kueue components
 - Manually creating/customizing the CR after deployment
 - Advanced debugging scenarios where you want to deploy just the operator infrastructure first
+
+### [versions]
+
+Configure versions of dependencies installed during deployment:
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `cert_manager` | string | `"v1.18.0"` | cert-manager version |
+| `jobset` | string | `"v0.10.1"` | JobSet version |
+| `leaderworkerset` | string | `"v0.7.0"` | LeaderWorkerSet version |
+| `calico` | string | `"v3.28.2"` | Calico CNI version |
+| `prometheus_operator` | string | `"v0.82.2"` | Prometheus Operator version |
+
+**Example:**
+
+```toml
+[versions]
+cert_manager = "v1.17.0"
+jobset = "v0.9.0"
+prometheus_operator = "v0.81.0"
+```
+
+**Command-line override:**
+
+You can override versions at deployment time:
+
+```bash
+# Override cert-manager version
+kueue-dev deploy kind --cert-manager-version v1.17.0
+
+# Override multiple versions
+kueue-dev deploy kind --cert-manager-version v1.17.0 --jobset-version v0.9.0
+
+# Override prometheus operator version
+kueue-dev deploy kind --prometheus-version v0.81.0
+```
+
+The command-line options take precedence over the configuration file.
 
 ### [tests]
 

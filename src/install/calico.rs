@@ -4,15 +4,13 @@ use crate::k8s::kubectl;
 use anyhow::{Context, Result};
 use std::path::Path;
 
-const CALICO_VERSION: &str = "v3.28.2";
-
 /// Install Calico CNI
-pub fn install(kubeconfig: Option<&Path>) -> Result<()> {
-    crate::log_info!("Installing Calico CNI...");
+pub fn install(version: &str, kubeconfig: Option<&Path>) -> Result<()> {
+    crate::log_info!("Installing Calico CNI {}...", version);
 
     let calico_operator_url = format!(
         "https://raw.githubusercontent.com/projectcalico/calico/{}/manifests/tigera-operator.yaml",
-        CALICO_VERSION
+        version
     );
 
     crate::log_info!("Applying Calico operator manifest...");
@@ -125,10 +123,8 @@ spec: {}
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
-    fn test_calico_version() {
-        assert!(CALICO_VERSION.starts_with('v'));
+    fn test_calico_module() {
+        // Basic compile test
     }
 }

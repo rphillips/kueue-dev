@@ -22,6 +22,9 @@ pub struct Settings {
 
     #[serde(default)]
     pub tests: TestSettings,
+
+    #[serde(default)]
+    pub versions: Versions,
 }
 
 /// Test configuration settings
@@ -93,6 +96,25 @@ pub struct KueueSettings {
     pub frameworks: Vec<String>,
 }
 
+/// Version settings for dependencies
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct Versions {
+    #[serde(default = "default_cert_manager_version")]
+    pub cert_manager: String,
+
+    #[serde(default = "default_jobset_version")]
+    pub jobset: String,
+
+    #[serde(default = "default_leaderworkerset_version")]
+    pub leaderworkerset: String,
+
+    #[serde(default = "default_calico_version")]
+    pub calico: String,
+
+    #[serde(default = "default_prometheus_operator_version")]
+    pub prometheus_operator: String,
+}
+
 // Default value functions
 fn default_cluster_name() -> String {
     "kueue-test".to_string()
@@ -131,6 +153,26 @@ fn default_kueue_frameworks() -> Vec<String> {
         "JobSet".to_string(),
         "LeaderWorkerSet".to_string(),
     ]
+}
+
+fn default_cert_manager_version() -> String {
+    "v1.18.0".to_string()
+}
+
+fn default_jobset_version() -> String {
+    "v0.10.1".to_string()
+}
+
+fn default_leaderworkerset_version() -> String {
+    "v0.7.0".to_string()
+}
+
+fn default_calico_version() -> String {
+    "v3.28.2".to_string()
+}
+
+fn default_prometheus_operator_version() -> String {
+    "v0.82.2".to_string()
 }
 
 fn default_operator_skip_patterns() -> Vec<String> {
@@ -226,6 +268,18 @@ impl Default for TestSettings {
         Self {
             operator_skip_patterns: default_operator_skip_patterns(),
             upstream_skip_patterns: default_upstream_skip_patterns(),
+        }
+    }
+}
+
+impl Default for Versions {
+    fn default() -> Self {
+        Self {
+            cert_manager: default_cert_manager_version(),
+            jobset: default_jobset_version(),
+            leaderworkerset: default_leaderworkerset_version(),
+            calico: default_calico_version(),
+            prometheus_operator: default_prometheus_operator_version(),
         }
     }
 }
@@ -353,6 +407,18 @@ upstream_skip_patterns = [
     "StatefulSet created with WorkloadPriorityClass",
     "Kueuectl"
 ]
+
+[versions]
+# Version of cert-manager to install
+cert_manager = "v1.18.0"
+# Version of JobSet to install
+jobset = "v0.10.1"
+# Version of LeaderWorkerSet to install
+leaderworkerset = "v0.7.0"
+# Version of Calico CNI to install
+calico = "v3.28.2"
+# Version of Prometheus Operator to install
+prometheus_operator = "v0.82.2"
 "#
                 .to_string()
             }

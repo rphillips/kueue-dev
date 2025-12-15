@@ -7,13 +7,9 @@ use std::str::FromStr;
 use crate::config::images::ImageConfig;
 use crate::config::kueue::{Framework, KueueConfig};
 use crate::config::settings::Settings;
-use crate::install::{calico, cert_manager, jobset, leaderworkerset, operator};
+use crate::install::{calico, cert_manager, jobset, leaderworkerset, operator, prometheus};
 use crate::k8s::{images, kind, kubectl, nodes};
 use crate::utils::ContainerRuntime;
-
-const CERT_MANAGER_VERSION: &str = "v1.18.0";
-const JOBSET_VERSION: &str = "v0.10.1";
-const LEADERWORKERSET_VERSION: &str = "v0.7.0";
 
 /// Options for deploying to kind cluster
 pub struct DeployKindOptions {
@@ -25,12 +21,34 @@ pub struct DeployKindOptions {
     pub kueue_frameworks: Option<String>,
     pub kueue_namespace: Option<String>,
     pub use_bundle: bool,
+    /// Version overrides for dependencies
+    pub cert_manager_version: Option<String>,
+    pub jobset_version: Option<String>,
+    pub leaderworkerset_version: Option<String>,
+    pub prometheus_version: Option<String>,
 }
 
 /// Handle deploy kind command
 pub fn deploy_kind(options: DeployKindOptions) -> Result<()> {
     // Ensure we're in the operator source directory
     let source_path = crate::utils::ensure_operator_source_directory()?;
+
+    // Load settings for versions and other config
+    let mut settings = Settings::load();
+
+    // Apply version overrides from CLI
+    if let Some(ref v) = options.cert_manager_version {
+        settings.versions.cert_manager = v.clone();
+    }
+    if let Some(ref v) = options.jobset_version {
+        settings.versions.jobset = v.clone();
+    }
+    if let Some(ref v) = options.leaderworkerset_version {
+        settings.versions.leaderworkerset = v.clone();
+    }
+    if let Some(ref v) = options.prometheus_version {
+        settings.versions.prometheus_operator = v.clone();
+    }
 
     crate::log_info!(
         "Deploying kueue-operator to kind cluster: {}",
@@ -137,21 +155,31 @@ pub fn deploy_kind(options: DeployKindOptions) -> Result<()> {
         let kubeconfig_path_clone2 = kubeconfig_path.clone();
         let kubeconfig_path_clone3 = kubeconfig_path.clone();
         let kubeconfig_path_clone4 = kubeconfig_path.clone();
+        let kubeconfig_path_clone5 = kubeconfig_path.clone();
+
+        let cert_manager_version = settings.versions.cert_manager.clone();
+        let jobset_version = settings.versions.jobset.clone();
+        let leaderworkerset_version = settings.versions.leaderworkerset.clone();
+        let prometheus_version = settings.versions.prometheus_operator.clone();
 
         let cert_manager_handle = std::thread::spawn(move || {
-            cert_manager::install(CERT_MANAGER_VERSION, Some(&kubeconfig_path_clone1))
+            cert_manager::install(&cert_manager_version, Some(&kubeconfig_path_clone1))
         });
 
         let jobset_handle = std::thread::spawn(move || {
-            jobset::install(JOBSET_VERSION, Some(&kubeconfig_path_clone2))
+            jobset::install(&jobset_version, Some(&kubeconfig_path_clone2))
         });
 
         let lws_handle = std::thread::spawn(move || {
-            leaderworkerset::install(LEADERWORKERSET_VERSION, Some(&kubeconfig_path_clone3))
+            leaderworkerset::install(&leaderworkerset_version, Some(&kubeconfig_path_clone3))
         });
 
         let olm_handle = std::thread::spawn(move || {
             crate::install::olm::install_olm(Some(&kubeconfig_path_clone4))
+        });
+
+        let prometheus_handle = std::thread::spawn(move || {
+            prometheus::install(&prometheus_version, Some(&kubeconfig_path_clone5))
         });
 
         // Wait for all parallel tasks to complete
@@ -167,6 +195,9 @@ pub fn deploy_kind(options: DeployKindOptions) -> Result<()> {
         olm_handle
             .join()
             .map_err(|e| anyhow::anyhow!("olm thread panicked: {:?}", e))??;
+        prometheus_handle
+            .join()
+            .map_err(|e| anyhow::anyhow!("prometheus thread panicked: {:?}", e))??;
 
         // Wait for images to finish loading
         crate::log_info!("Waiting for images to finish loading...");
@@ -202,7 +233,6 @@ pub fn deploy_kind(options: DeployKindOptions) -> Result<()> {
 
         // Build Kueue config if not skipping
         if !options.skip_kueue_cr {
-            let settings = Settings::load();
             let kueue_config = build_kueue_config_from_settings(
                 &settings,
                 options.kueue_frameworks.as_deref(),
@@ -232,17 +262,27 @@ pub fn deploy_kind(options: DeployKindOptions) -> Result<()> {
         let kubeconfig_path_clone1 = kubeconfig_path.clone();
         let kubeconfig_path_clone2 = kubeconfig_path.clone();
         let kubeconfig_path_clone3 = kubeconfig_path.clone();
+        let kubeconfig_path_clone4 = kubeconfig_path.clone();
+
+        let cert_manager_version = settings.versions.cert_manager.clone();
+        let jobset_version = settings.versions.jobset.clone();
+        let leaderworkerset_version = settings.versions.leaderworkerset.clone();
+        let prometheus_version = settings.versions.prometheus_operator.clone();
 
         let cert_manager_handle = std::thread::spawn(move || {
-            cert_manager::install(CERT_MANAGER_VERSION, Some(&kubeconfig_path_clone1))
+            cert_manager::install(&cert_manager_version, Some(&kubeconfig_path_clone1))
         });
 
         let jobset_handle = std::thread::spawn(move || {
-            jobset::install(JOBSET_VERSION, Some(&kubeconfig_path_clone2))
+            jobset::install(&jobset_version, Some(&kubeconfig_path_clone2))
         });
 
         let lws_handle = std::thread::spawn(move || {
-            leaderworkerset::install(LEADERWORKERSET_VERSION, Some(&kubeconfig_path_clone3))
+            leaderworkerset::install(&leaderworkerset_version, Some(&kubeconfig_path_clone3))
+        });
+
+        let prometheus_handle = std::thread::spawn(move || {
+            prometheus::install(&prometheus_version, Some(&kubeconfig_path_clone4))
         });
 
         // Wait for all parallel tasks to complete
@@ -255,6 +295,9 @@ pub fn deploy_kind(options: DeployKindOptions) -> Result<()> {
         lws_handle
             .join()
             .map_err(|e| anyhow::anyhow!("leaderworkerset thread panicked: {:?}", e))??;
+        prometheus_handle
+            .join()
+            .map_err(|e| anyhow::anyhow!("prometheus thread panicked: {:?}", e))??;
 
         // Wait for images to finish loading
         crate::log_info!("Waiting for images to finish loading...");
@@ -270,7 +313,6 @@ pub fn deploy_kind(options: DeployKindOptions) -> Result<()> {
             crate::log_info!("Skipping Kueue CR creation (--skip-kueue-cr flag provided)");
             None
         } else {
-            let settings = Settings::load();
             Some(build_kueue_config_from_settings(
                 &settings,
                 options.kueue_frameworks.as_deref(),
@@ -368,7 +410,7 @@ pub fn deploy_kind_full(
 
     // Install Calico if selected
     if matches!(cni_provider, kind::CniProvider::Calico) {
-        calico::install(Some(&kubeconfig_path))?;
+        calico::install(&settings.versions.calico, Some(&kubeconfig_path))?;
     }
 
     // Label worker nodes
@@ -384,6 +426,10 @@ pub fn deploy_kind_full(
         kueue_frameworks: None,
         kueue_namespace: None,
         use_bundle: true,
+        cert_manager_version: None,
+        jobset_version: None,
+        leaderworkerset_version: None,
+        prometheus_version: None,
     })?;
 
     Ok(())
