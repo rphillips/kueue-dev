@@ -37,7 +37,7 @@ pub fn deploy_kind(options: DeployKindOptions) -> Result<()> {
     let source_path = crate::utils::ensure_operator_source_directory()?;
 
     // Load settings for versions and other config
-    let mut settings = Settings::load();
+    let mut settings = Settings::load()?;
 
     // Apply version overrides from CLI
     if let Some(ref v) = options.cert_manager_version {
@@ -396,7 +396,7 @@ pub fn deploy_kind_full(
 
     // For deploy_kind_full, we always need to save kubeconfig
     // Use default path if not specified in config
-    let settings = crate::config::settings::Settings::load();
+    let settings = crate::config::settings::Settings::load()?;
     let kubeconfig_to_save = settings
         .defaults
         .kubeconfig_path
@@ -545,7 +545,7 @@ pub struct DeployUpstreamHelmOptions {
 
 /// Deploy upstream kueue via kustomize
 pub fn deploy_upstream_kustomize(options: DeployUpstreamKustomizeOptions) -> Result<()> {
-    let settings = Settings::load();
+    let settings = Settings::load()?;
 
     // Resolve upstream source path
     let source_path = upstream::resolve_upstream_source(
@@ -610,7 +610,7 @@ pub fn deploy_upstream_kustomize(options: DeployUpstreamKustomizeOptions) -> Res
 
 /// Deploy upstream kueue via helm
 pub fn deploy_upstream_helm(options: DeployUpstreamHelmOptions) -> Result<()> {
-    let settings = Settings::load();
+    let settings = Settings::load()?;
 
     // Resolve upstream source path
     let source_path = upstream::resolve_upstream_source(

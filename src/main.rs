@@ -505,6 +505,9 @@ fn main() -> Result<()> {
     // Set the operator source path from CLI if provided
     kueue_dev::utils::set_cli_operator_source(cli.operator_source);
 
+    // Fail fast on malformed configuration instead of silently using defaults.
+    let _ = Settings::load()?;
+
     match cli.command {
         Commands::Cluster { command } => handle_cluster_command(command),
         Commands::Deploy { command } => handle_deploy_command(command),
@@ -525,7 +528,7 @@ fn handle_cluster_command(command: ClusterCommands) -> Result<()> {
             cni,
             kubeconfig,
         } => {
-            let settings = Settings::load();
+            let settings = Settings::load()?;
             let cni = cni.unwrap_or(settings.defaults.cni_provider);
             kueue_dev::commands::cluster::create(name, cni, kubeconfig)
         }
@@ -563,7 +566,7 @@ fn handle_deploy_operator_command(command: DeployOperatorCommands) -> Result<()>
             use kueue_dev::config::settings::Settings;
 
             // Use provided images file or fall back to config file setting
-            let settings = Settings::load();
+            let settings = Settings::load()?;
             let images_file = images.unwrap_or(settings.defaults.images_file);
 
             kueue_dev::commands::deploy::deploy_kind(DeployKindOptions {
@@ -624,7 +627,7 @@ fn handle_deploy_operator_command(command: DeployOperatorCommands) -> Result<()>
             use kueue_dev::config::settings::Settings;
 
             // Use provided images file or fall back to config file setting
-            let settings = Settings::load();
+            let settings = Settings::load()?;
             let images_file = images.unwrap_or(settings.defaults.images_file);
 
             kueue_dev::commands::openshift::deploy_openshift(images_file, skip_tests)
@@ -739,7 +742,7 @@ fn handle_test_command(command: TestCommands) -> Result<()> {
                     use kueue_dev::commands::test::TestKindOptions;
 
                     // Use provided images file or fall back to config file setting
-                    let settings = Settings::load();
+                    let settings = Settings::load()?;
                     let images_file = images.unwrap_or(settings.defaults.images_file);
 
                     kueue_dev::commands::test::run_tests_kind(TestKindOptions {
@@ -811,7 +814,7 @@ fn handle_images_command(command: ImagesCommands) -> Result<()> {
             use kueue_dev::utils::ContainerRuntime;
 
             // Use provided images file or fall back to config file setting
-            let settings = Settings::load();
+            let settings = Settings::load()?;
             let images_file = images.unwrap_or(settings.defaults.images_file);
 
             let path = PathBuf::from(&images_file);

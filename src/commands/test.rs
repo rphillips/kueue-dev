@@ -59,7 +59,7 @@ pub fn run_tests(
     let ginkgo_bin = ensure_ginkgo()?;
 
     // Load settings to get skip patterns
-    let settings = Settings::load();
+    let settings = Settings::load()?;
     let skip_patterns = &settings.tests.operator_skip_patterns;
 
     // Run tests
@@ -95,7 +95,7 @@ pub fn run_tests_with_retry(
     let ginkgo_bin = ensure_ginkgo()?;
 
     // Load settings to get skip patterns
-    let settings = Settings::load();
+    let settings = Settings::load()?;
     let skip_patterns = &settings.tests.operator_skip_patterns;
 
     crate::log_info!("");
@@ -144,7 +144,7 @@ pub fn run_tests_kind(options: TestKindOptions) -> Result<()> {
     crate::log_info!("Creating kind cluster and running e2e tests...");
 
     // Load settings
-    let settings = Settings::load();
+    let settings = Settings::load()?;
 
     // Parse CNI provider (always use Calico for tests)
     let cni_provider = kind::CniProvider::Calico;
@@ -730,7 +730,7 @@ pub fn test_upstream(
     let ginkgo_bin = ensure_ginkgo()?;
 
     // Load settings to get skip patterns
-    let settings = Settings::load();
+    let settings = Settings::load()?;
     let skip_patterns = &settings.tests.upstream_skip_patterns;
 
     // Run tests

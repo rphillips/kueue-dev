@@ -8,7 +8,7 @@ use dialoguer::Confirm;
 pub fn confirm(prompt: &str) -> Result<bool> {
     use crate::config::settings::Settings;
 
-    let settings = Settings::load();
+    let settings = Settings::load()?;
 
     // If confirm_destructive is false, auto-confirm
     if !settings.behavior.confirm_destructive {

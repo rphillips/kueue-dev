@@ -16,7 +16,7 @@ pub fn create(name: String, cni: String, kubeconfig: Option<String>) -> Result<(
     use std::path::PathBuf;
 
     // Load settings for versions and other config
-    let settings = Settings::load();
+    let settings = Settings::load()?;
 
     crate::log_info!("Creating kind cluster: {}", name);
 

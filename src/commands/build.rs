@@ -23,7 +23,7 @@ pub fn build_and_push(
     let images_file_path = if let Some(path) = images_file {
         path
     } else {
-        let settings = Settings::load();
+        let settings = Settings::load()?;
         settings.defaults.images_file.clone()
     };
 

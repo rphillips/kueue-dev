@@ -16,6 +16,10 @@ cni_provider = "calico"
 # Default images configuration file
 images_file = "related_images.json"
 
+# Path to the kueue-operator source directory
+# Defaults to the current working directory if unset
+# kueue_operator_source_path = "/path/to/kueue-operator"
+
 [colors]
 # Enable/disable colored output
 enabled = true

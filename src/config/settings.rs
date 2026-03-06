@@ -309,11 +309,11 @@ impl Default for Versions {
 
 impl Settings {
     /// Load settings from file or return defaults
-    pub fn load() -> Self {
+    pub fn load() -> Result<Self> {
         if let Some(path) = Self::find_config_file() {
-            Self::load_from_file(&path).unwrap_or_default()
+            Self::load_from_file(&path)
         } else {
-            Self::default()
+            Ok(Self::default())
         }
     }
 
@@ -348,6 +348,21 @@ impl Settings {
         }
 
         None
+    }
+
+    /// Return the active config file path, resolved to an absolute path when possible.
+    pub fn active_config_file() -> Option<PathBuf> {
+        Self::find_config_file().map(|path| {
+            path.canonicalize().unwrap_or_else(|_| {
+                if path.is_absolute() {
+                    path
+                } else {
+                    std::env::current_dir()
+                        .unwrap_or_else(|_| PathBuf::from("."))
+                        .join(path)
+                }
+            })
+        })
     }
 
     /// Save settings to file
